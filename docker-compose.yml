@@ -1,0 +1,42 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ruinionai
+      POSTGRES_USER: ruinionai
+      POSTGRES_PASSWORD: ruinionai_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  backend:
+    build: ./agent_résumé
+    environment:
+      DATABASE_URL: postgresql+psycopg://ruinionai:ruinionai_password@db:5432/ruinionai
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY}
+      MISTRAL_MODEL_ID: mistral/mistral-large-2512
+      MISTRAL_MODEL_ID2: mistral-small-2603
+      ZAI_MODEL: zai-glm-5-2
+      MISTRAL_AUDIO_MODEL: voxtral-mini-latest
+      REPORTS_DIR: /app/storage/reports
+    
+    volumes:
+      - ./storage:/app/storage
+
+    ports:
+      - "8000:8000"
+
+    depends_on:
+      - db
+
+  frontend:
+    build: ./front
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+  
+volumes:
+  postgres_data:

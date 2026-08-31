@@ -1,0 +1,9 @@
+.env
+**/.env
+**/.venv/
+**/__pycache__/
+**/*.pyc
+front/node_modules/
+front/dist/
+storage/
+agent_résumé/reports/
