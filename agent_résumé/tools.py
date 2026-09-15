@@ -26,6 +26,12 @@ import json
 from smolagents import Tool
 
 
+def get_reports_dir() -> Path:
+    reports_dir = Path(os.getenv("REPORTS_DIR", "/app/storage/reports"))
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    return reports_dir
+
+
 class BuildWord(Tool):
     name = "BuildWord"
     description = (
@@ -349,8 +355,7 @@ class BuildWord(Tool):
                 doc.add_paragraph(sender.split("\n")[0])  # Premier ligne = nom
 
             # === Sauvegarde ===
-            reports_dir = Path(os.getenv("REPORTS_DIR", "/app/storage/reports"))
-            reports_dir.mkdir(parents=True, exist_ok=True)
+            reports_dir = get_reports_dir()
             safe_filename = (
                 "".join(
                     c for c in filename if c.isalnum() or c in (" ", "-", "_")
@@ -390,8 +395,7 @@ class BuildPDF(Tool):
                 ).strip()
                 or "document"
             )
-            reports_dir = Path(os.getenv("REPORTS_DIR", "/app/storage/reports"))
-            reports_dir.mkdir(parents=True, exist_ok=True)
+            reports_dir = get_reports_dir()
 
             file_path = reports_dir / f"{safe_name}.pdf"
             styles = getSampleStyleSheet()

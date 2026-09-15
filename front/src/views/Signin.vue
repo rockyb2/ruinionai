@@ -1,10 +1,14 @@
 <script setup>
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   AudioLines,
-  Download,
+  Building2,
+  CheckCircle2,
   Eye,
+  EyeOff,
   FileText,
+  LoaderCircle,
   Lock,
   Mail,
   Mic,
@@ -13,72 +17,130 @@ import {
   SquareCheckBig,
   User,
 } from '@lucide/vue'
-import signinVisual from '../assets/visuelsignin.png'
 
-const fullName = ref('')
+import signinVisual from '../assets/visuelsignin.png'
+import { registerUser } from '@/service/api'
+
+const router = useRouter()
+
+const firstName = ref('')
+const lastName = ref('')
+const organizationName = ref('')
 const email = ref('')
 const password = ref('')
 const confirmPassword = ref('')
+const rememberMe = ref(true)
 const showPassword = ref(false)
 const showConfirmPassword = ref(false)
+const isSubmitting = ref(false)
+const errorMessage = ref('')
 
-function handleSignup() {
-  console.log({
-    fullName: fullName.value,
-    email: email.value,
-  })
+function validateForm() {
+  if (
+    !firstName.value.trim() ||
+    !lastName.value.trim() ||
+    !organizationName.value.trim() ||
+    !email.value.trim() ||
+    !password.value
+  ) {
+    return 'Tous les champs sont nécessaires pour créer votre espace.'
+  }
+
+  if (password.value.length < 8) {
+    return 'Le mot de passe doit contenir au moins 8 caractères.'
+  }
+
+  if (password.value !== confirmPassword.value) {
+    return 'Les deux mots de passe ne correspondent pas.'
+  }
+
+  return ''
+}
+
+async function handleSignup() {
+  const validationError = validateForm()
+
+  if (validationError) {
+    errorMessage.value = validationError
+    return
+  }
+
+  try {
+    isSubmitting.value = true
+    errorMessage.value = ''
+
+    await registerUser(
+      {
+        first_name: firstName.value,
+        last_name: lastName.value,
+        organization_name: organizationName.value,
+        email: email.value,
+        password: password.value,
+      },
+      rememberMe.value,
+    )
+
+    router.push('/reunion')
+  } catch (error) {
+    errorMessage.value = error.message || 'Inscription impossible pour le moment.'
+  } finally {
+    isSubmitting.value = false
+  }
 }
 </script>
 
 <template>
   <main class="min-h-screen overflow-hidden bg-white text-[#071124]">
-    <section class="relative mx-auto grid min-h-screen w-full max-w-[1728px] grid-cols-1 lg:grid-cols-[1fr_620px]">
+    <section class="relative mx-auto grid min-h-screen w-full max-w-[1728px] grid-cols-1 lg:grid-cols-[1fr_600px]">
       <div class="relative px-6 py-8 sm:px-10 lg:px-14 xl:px-16">
-        <div class="flex items-center gap-4">
+        <RouterLink class="flex w-fit items-center gap-4" to="/login">
           <div class="grid h-12 w-12 place-items-center rounded-2xl bg-blue-600 text-white shadow-[0_18px_34px_rgba(37,99,235,0.28)]">
             <AudioLines :size="26" :stroke-width="2.6" />
           </div>
           <div>
             <p class="text-2xl font-black leading-none tracking-normal">
-              REUNION <span class="text-blue-600">AI</span>
+              RUINION <span class="text-blue-600">AI</span>
             </p>
             <p class="mt-2 text-sm font-medium text-slate-500">
-              Votre assistant de réunion intelligent
+              Votre mémoire de réunion collaborative
             </p>
           </div>
-        </div>
+        </RouterLink>
 
-        <div class="relative z-10 mt-16 max-w-[650px] lg:mt-14">
-          <h1 class="text-4xl font-black leading-[1.18] tracking-normal text-slate-950 sm:text-5xl lg:text-[3.35rem]">
-            Créez votre compte et boostez vos réunions avec
-            <span class="text-blue-600"> l’IA</span>
+        <div class="relative z-10 mt-14 max-w-[650px]">
+          <p class="inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-black text-blue-600">
+            <Sparkles class="h-4 w-4" />
+            Lancement de votre workspace
+          </p>
+          <h1 class="mt-6 text-4xl font-black leading-[1.18] tracking-normal text-slate-950 sm:text-5xl lg:text-[3.25rem]">
+            Créez un espace d'équipe prêt pour vos comptes rendus IA.
           </h1>
           <p class="mt-7 max-w-lg text-lg font-medium leading-8 text-slate-500">
-            Transcrivez, analysez et obtenez des résumés intelligents en quelques clics.
+            Votre organisation devient le coffre-fort de vos réunions, décisions et prochaines actions.
           </p>
         </div>
 
-        <div class="relative z-10 mt-9 grid max-w-lg gap-6">
+        <div class="relative z-10 mt-10 grid max-w-lg gap-6">
           <div class="flex gap-5">
             <div class="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-blue-50 text-blue-600">
-              <Mic :size="28" />
+              <Mic :size="27" />
             </div>
             <div>
-              <h2 class="text-base font-black tracking-normal text-slate-950">Transcription précise</h2>
+              <h2 class="text-base font-black tracking-normal text-slate-950">Capture de réunion</h2>
               <p class="mt-2 text-sm font-medium leading-6 text-slate-500">
-                Reconnaissance vocale avancée dans plusieurs langues.
+                Enregistrez ou importez un audio depuis votre espace sécurisé.
               </p>
             </div>
           </div>
 
           <div class="flex gap-5">
             <div class="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-blue-50 text-blue-600">
-              <Sparkles :size="27" />
+              <FileText :size="27" />
             </div>
             <div>
-              <h2 class="text-base font-black tracking-normal text-slate-950">Résumés intelligents</h2>
+              <h2 class="text-base font-black tracking-normal text-slate-950">Mémoire organisée</h2>
               <p class="mt-2 text-sm font-medium leading-6 text-slate-500">
-                Synthèse automatique des points clés, décisions et actions.
+                Les comptes rendus restent rattachés à votre entreprise.
               </p>
             </div>
           </div>
@@ -88,83 +150,90 @@ function handleSignup() {
               <SquareCheckBig :size="27" />
             </div>
             <div>
-              <h2 class="text-base font-black tracking-normal text-slate-950">Actions & décisions</h2>
+              <h2 class="text-base font-black tracking-normal text-slate-950">Décisions actionnables</h2>
               <p class="mt-2 text-sm font-medium leading-6 text-slate-500">
-                Identification automatique des tâches et responsabilités.
-              </p>
-            </div>
-          </div>
-
-          <div class="flex gap-5">
-            <div class="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-blue-50 text-blue-600">
-              <Download :size="28" />
-            </div>
-            <div>
-              <h2 class="text-base font-black tracking-normal text-slate-950">Export facile</h2>
-              <p class="mt-2 text-sm font-medium leading-6 text-slate-500">
-                Exportez vos résumés en PDF, Word ou Markdown.
+                Les résumés courts et longs préparent la future aide à la décision.
               </p>
             </div>
           </div>
         </div>
 
         <img
-          class="pointer-events-none absolute left-[43%] top-[24%] hidden w-[590px] max-w-none -translate-x-4 select-none lg:block xl:left-[45%] xl:w-[710px]"
+          class="pointer-events-none absolute left-[44%] top-[23%] hidden w-[590px] max-w-none -translate-x-4 select-none lg:block xl:left-[45%] xl:w-[700px]"
           :src="signinVisual"
           alt=""
           aria-hidden="true"
         />
 
-        <div class="relative z-10 mt-10 max-w-[620px] rounded-2xl bg-blue-50/70 p-6 shadow-[0_18px_44px_rgba(37,99,235,0.07)] lg:mt-9">
-          <div class="flex gap-5">
-            <div class="text-5xl font-black leading-none text-blue-600">“</div>
-            <div class="min-w-0 flex-1">
-              <p class="text-sm font-medium leading-6 text-slate-600">
-                Reunion AI a transformé notre façon de collaborer. Nos réunions sont maintenant plus productives et mieux suivies.
-              </p>
-              <div class="mt-5 flex flex-wrap items-center justify-between gap-4">
-                <div class="flex items-center gap-3">
-                  <div class="grid h-11 w-11 place-items-center rounded-full bg-gradient-to-br from-blue-200 to-slate-200 text-sm font-black text-slate-700">
-                    KA
-                  </div>
-                  <div>
-                    <p class="text-sm font-black text-slate-950">Koffi A.</p>
-                    <p class="text-xs font-medium text-slate-500">Chef de projet</p>
-                  </div>
-                </div>
-                <div class="flex items-center gap-2 text-sm font-black text-slate-700">
-                  <span class="text-amber-400">★★★★★</span>
-                  4.9/5
-                </div>
-              </div>
-            </div>
+        <div class="relative z-10 mt-10 grid max-w-[720px] gap-4 border-t border-slate-100 pt-8 md:grid-cols-3">
+          <div class="flex gap-3">
+            <CheckCircle2 class="mt-1 shrink-0 text-emerald-500" :size="22" />
+            <p class="text-sm font-bold leading-6 text-slate-600">Admin créé automatiquement</p>
+          </div>
+          <div class="flex gap-3">
+            <CheckCircle2 class="mt-1 shrink-0 text-emerald-500" :size="22" />
+            <p class="text-sm font-bold leading-6 text-slate-600">Organisation isolée en base</p>
+          </div>
+          <div class="flex gap-3">
+            <CheckCircle2 class="mt-1 shrink-0 text-emerald-500" :size="22" />
+            <p class="text-sm font-bold leading-6 text-slate-600">Prêt pour inviter une équipe</p>
           </div>
         </div>
       </div>
 
       <aside class="relative grid place-items-center bg-gradient-to-br from-white via-slate-50 to-blue-50/60 px-6 py-10 lg:px-12">
         <form
-          class="w-full max-w-[520px] rounded-2xl border border-slate-200 bg-white/90 px-7 py-9 shadow-[0_26px_70px_rgba(15,23,42,0.10)] backdrop-blur sm:px-10 lg:py-11"
+          class="w-full max-w-[520px] rounded-2xl border border-slate-200 bg-white/95 px-7 py-8 shadow-[0_26px_70px_rgba(15,23,42,0.10)] backdrop-blur sm:px-10 lg:py-10"
           @submit.prevent="handleSignup"
         >
           <div>
-            <h2 class="text-3xl font-black tracking-normal text-slate-950">Créer un compte</h2>
+            <h2 class="text-3xl font-black tracking-normal text-slate-950">Créer votre espace</h2>
             <p class="mt-3 text-base font-medium text-slate-500">
-              Rejoignez des milliers d’équipes productives.
+              Un compte admin et une organisation sont créés ensemble.
             </p>
           </div>
 
-          <div class="mt-9 grid gap-5">
+          <div class="mt-8 grid gap-4">
+            <div class="grid gap-4 sm:grid-cols-2">
+              <label class="grid gap-2 text-sm font-bold text-slate-700">
+                Prénom
+                <span class="relative">
+                  <User class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" :size="19" />
+                  <input
+                    v-model="firstName"
+                    class="h-13 w-full rounded-lg border border-slate-200 bg-white pl-12 pr-4 text-base font-semibold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                    type="text"
+                    autocomplete="given-name"
+                    placeholder="Jonathan"
+                  />
+                </span>
+              </label>
+
+              <label class="grid gap-2 text-sm font-bold text-slate-700">
+                Nom
+                <span class="relative">
+                  <User class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" :size="19" />
+                  <input
+                    v-model="lastName"
+                    class="h-13 w-full rounded-lg border border-slate-200 bg-white pl-12 pr-4 text-base font-semibold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                    type="text"
+                    autocomplete="family-name"
+                    placeholder="Kouassi"
+                  />
+                </span>
+              </label>
+            </div>
+
             <label class="grid gap-2 text-sm font-bold text-slate-700">
-              Nom complet
+              Organisation
               <span class="relative">
-                <User class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" :size="20" />
+                <Building2 class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" :size="20" />
                 <input
-                  v-model="fullName"
+                  v-model="organizationName"
                   class="h-13 w-full rounded-lg border border-slate-200 bg-white pl-12 pr-4 text-base font-semibold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                   type="text"
-                  autocomplete="name"
-                  placeholder="Votre nom complet"
+                  autocomplete="organization"
+                  placeholder="Nom de votre entreprise"
                 />
               </span>
             </label>
@@ -197,16 +266,17 @@ function handleSignup() {
                 <button
                   class="absolute right-4 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-blue-600"
                   type="button"
-                  aria-label="Afficher le mot de passe"
+                  :aria-label="showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'"
                   @click="showPassword = !showPassword"
                 >
-                  <Eye :size="20" />
+                  <EyeOff v-if="showPassword" :size="20" />
+                  <Eye v-else :size="20" />
                 </button>
               </span>
             </label>
 
             <label class="grid gap-2 text-sm font-bold text-slate-700">
-              Confirmer le mot de passe
+              Confirmation
               <span class="relative">
                 <Lock class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" :size="20" />
                 <input
@@ -214,68 +284,56 @@ function handleSignup() {
                   class="h-13 w-full rounded-lg border border-slate-200 bg-white pl-12 pr-12 text-base font-semibold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                   :type="showConfirmPassword ? 'text' : 'password'"
                   autocomplete="new-password"
-                  placeholder="Répétez votre mot de passe"
+                  placeholder="Répétez le mot de passe"
                 />
                 <button
                   class="absolute right-4 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-blue-600"
                   type="button"
-                  aria-label="Afficher la confirmation du mot de passe"
+                  :aria-label="showConfirmPassword ? 'Masquer la confirmation' : 'Afficher la confirmation'"
                   @click="showConfirmPassword = !showConfirmPassword"
                 >
-                  <Eye :size="20" />
+                  <EyeOff v-if="showConfirmPassword" :size="20" />
+                  <Eye v-else :size="20" />
                 </button>
               </span>
             </label>
           </div>
 
+          <label class="mt-5 flex cursor-pointer items-center gap-3 text-sm font-semibold text-slate-500">
+            <input
+              v-model="rememberMe"
+              class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              type="checkbox"
+            />
+            Rester connecté
+          </label>
+
+          <p
+            v-if="errorMessage"
+            class="mt-5 rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600"
+          >
+            {{ errorMessage }}
+          </p>
+
           <div class="mt-6 flex gap-4 rounded-lg bg-blue-50 px-5 py-4">
             <div class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-600 text-white">
-              <ShieldCheck :size="24" />
+              <ShieldCheck :size="22" />
             </div>
             <p class="text-sm font-medium leading-6 text-slate-600">
-              En créant un compte, vous acceptez nos
-              <a class="font-black text-blue-600 hover:text-blue-700" href="#">Conditions d’utilisation</a>
-              et
-              <a class="font-black text-blue-600 hover:text-blue-700" href="#">Politique de confidentialité</a>.
+              Vos réunions seront rattachées à cette organisation et isolées des autres espaces.
             </p>
           </div>
 
           <button
-            class="mt-7 h-13 w-full rounded-lg bg-blue-600 text-base font-black text-white shadow-[0_14px_28px_rgba(37,99,235,0.25)] transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200"
+            class="mt-7 inline-flex h-13 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 text-base font-black text-white shadow-[0_14px_28px_rgba(37,99,235,0.25)] transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
             type="submit"
+            :disabled="isSubmitting"
           >
-            S’inscrire
+            <LoaderCircle v-if="isSubmitting" class="h-5 w-5 animate-spin" />
+            Créer l'espace
           </button>
 
-          <div class="my-8 flex items-center gap-4 text-sm font-medium text-slate-400">
-            <span class="h-px flex-1 bg-slate-200"></span>
-            ou continuer avec
-            <span class="h-px flex-1 bg-slate-200"></span>
-          </div>
-
-          <div class="grid gap-3 sm:grid-cols-2">
-            <button
-              class="flex h-13 items-center justify-center gap-3 rounded-lg border border-slate-200 bg-white text-base font-black text-slate-800 transition hover:border-blue-200 hover:bg-blue-50"
-              type="button"
-            >
-              <span class="text-xl font-black text-[#4285F4]">G</span>
-              Google
-            </button>
-            <button
-              class="flex h-13 items-center justify-center gap-3 rounded-lg border border-slate-200 bg-white text-base font-black text-slate-800 transition hover:border-blue-200 hover:bg-blue-50"
-              type="button"
-            >
-              <span class="grid grid-cols-2 gap-0.5">
-                <span class="h-2.5 w-2.5 bg-[#f25022]"></span>
-                <span class="h-2.5 w-2.5 bg-[#7fba00]"></span>
-                <span class="h-2.5 w-2.5 bg-[#00a4ef]"></span>
-                <span class="h-2.5 w-2.5 bg-[#ffb900]"></span>
-              </span>
-              Microsoft
-            </button>
-          </div>
-
-          <p class="mt-10 text-center text-sm font-medium text-slate-500">
+          <p class="mt-8 text-center text-sm font-medium text-slate-500">
             Vous avez déjà un compte ?
             <RouterLink class="font-black text-blue-600 transition hover:text-blue-700" to="/login">
               Se connecter

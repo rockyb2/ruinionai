@@ -7,3 +7,4 @@ front/node_modules/
 front/dist/
 storage/
 agent_résumé/reports/
+*.dump

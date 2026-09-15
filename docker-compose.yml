@@ -4,38 +4,73 @@ services:
     environment:
       POSTGRES_DB: ruinionai
       POSTGRES_USER: ruinionai
-      POSTGRES_PASSWORD: ruinionai_password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is not set in .env file}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5433:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ruinionai -d ruinionai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    
 
   backend:
     build: ./agent_résumé
     environment:
-      DATABASE_URL: postgresql+psycopg://ruinionai:ruinionai_password@db:5432/ruinionai
-      MISTRAL_API_KEY: ${MISTRAL_API_KEY}
-      MISTRAL_MODEL_ID: mistral/mistral-large-2512
-      MISTRAL_MODEL_ID2: mistral-small-2603
-      ZAI_MODEL: zai-glm-5-2
-      MISTRAL_AUDIO_MODEL: voxtral-mini-latest
+      DATABASE_URL: postgresql+psycopg://ruinionai:${POSTGRES_PASSWORD}@db:5432/ruinionai
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is not set in .env file}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL_ID: ${OPENROUTER_MODEL_ID:-openrouter/nvidia/nemotron-3.5-lightning:free}
+      NEX_AGI_MODEL_ID: ${NEX_AGI_MODEL_ID:-openrouter/nex-agi/nex-n2.5-mini:free}
+      NEX_AGI_MODEL_ID2: ${NEX_AGI_MODEL_ID2:-openrouter/nex-agi/nex-n2.5-pro:free}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+      MISTRAL_MODEL_ID: ${MISTRAL_MODEL_ID:-mistral/mistral-small-2603}
+      MISTRAL_MODEL_ID2: ${MISTRAL_MODEL_ID2:-}
+      ZAI_API_KEY: ${ZAI_API_KEY:-}
+      ZAI_MODEL: ${ZAI_MODEL:-}
+      MISTRAL_AUDIO_MODEL: ${MISTRAL_AUDIO_MODEL:-voxtral-mini-latest}
       REPORTS_DIR: /app/storage/reports
+
+    restart: unless-stopped
+
+    command: >
+      sh -c "alembic upgrade head &&
+             exec uvicorn main:app --host 0.0.0.0 --port 8000"
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     
     volumes:
       - ./storage:/app/storage
 
-    ports:
-      - "8000:8000"
+    
 
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
   frontend:
     build: ./front
     ports:
-      - "5173:80"
+      - "127.0.0.1:5173:80"
+    restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
   
 volumes:

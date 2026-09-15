@@ -1,21 +1,27 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from auth.routes import router as auth_router
 from routes.meetings import router as meetings_router
-from database import Base , engine
-
-Base.metadata.create_all(bind=engine)
 
 
 app = FastAPI(title="RuinionAI Backend")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+@app.get("/health", include_in_schema=False)
+def health():
+    return {"status": "ok"}
 
-
+app.include_router(auth_router)
 app.include_router(meetings_router)
