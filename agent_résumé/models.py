@@ -1,5 +1,6 @@
 from database import Base
 from sqlalchemy import Column, Integer, String, Text, DateTime,ForeignKey,Boolean,Enum
+from sqlalchemy import CheckConstraint, UniqueConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
@@ -21,8 +22,23 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    memberships = relationship("OrganizationMember", back_populates="user")
-    meetings = relationship("Meeting", back_populates="created_by")
+    memberships = relationship(
+        "OrganizationMember",
+        back_populates="user",
+    )
+    meetings = relationship(
+        "Meeting",
+        back_populates="created_by",
+    )
+    sent_invitations = relationship(
+        "OrganizationInvitation",
+        back_populates="invited_by",
+    )
+    notifications = relationship(
+        "OrganizationNotification",
+        back_populates="user",
+        passive_deletes=True,
+    )
 
 class Organization(Base):
     __tablename__ = "organizations"
@@ -31,17 +47,86 @@ class Organization(Base):
     name = Column(String, unique=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    description = Column(Text, nullable=True)
+    invitation_expiration_days = Column(
+        Integer,
+        nullable=False,
+        default=7,
+        server_default="7",
+    )
+    allow_admin_invitations = Column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="true",
+    )
+    invitation_notifications_enabled = Column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="true",
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "invitation_expiration_days BETWEEN 1 AND 30",
+            name="ck_organizations_invitation_expiration_days",
+        ),
+    )
 
     members = relationship("OrganizationMember", back_populates="organization")
     meetings = relationship("Meeting", back_populates="organization")
+    invitations = relationship("OrganizationInvitation", back_populates="organization")
+    notifications = relationship(
+        "OrganizationNotification",
+        back_populates="organization",
+        passive_deletes=True,
+    )
+
 
 class OrganizationMember(Base):
     __tablename__ = "organization_members"
 
+    __table_args__ = (
+        UniqueConstraint(
+            "organization_id",
+            "user_id",
+            name="uq_organization_members_organization_user",
+        ),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
-    organization_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"))
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
-    role = Column(Enum("admin", "member", name= "organization_member_role"), default="member")
+    organization_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    role = Column(
+        Enum(
+            "owner",
+            "admin",
+            "member",
+            name="organization_member_role",
+        ),
+        nullable=False,
+        default="member",
+        server_default="member",
+    )
+    status = Column(
+        Enum(
+            "active",
+            "inactive",
+            name="organization_member_status",
+        ),
+        nullable=False,
+        default="active",
+        server_default="active",
+    )
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -49,11 +134,151 @@ class OrganizationMember(Base):
     user = relationship("User", back_populates="memberships")
 
 
+class OrganizationInvitation(Base):
+    __tablename__ = "organization_invitations"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    organization_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    email = Column(
+        String(255),
+        nullable=False,
+        index=True,
+    )
+
+    role = Column(
+        Enum(
+            "admin",
+            "member",
+            name="organization_invitation_role",
+        ),
+        nullable=False,
+        default="member",
+        server_default="member",
+    )
+
+    # Empreinte SHA-256 du jeton aléatoire envoyé dans l'invitation.
+    token_hash = Column(
+        String(64),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+
+    invited_by_user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    status = Column(
+        Enum(
+            "pending",
+            "accepted",
+            "declined",
+            "revoked",
+            name="organization_invitation_status",
+        ),
+        nullable=False,
+        default="pending",
+        server_default="pending",
+    )
+
+    created_at = Column(
+        DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+    )
+
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+    # Date limite obligatoire, calculée lors de la création.
+    # Les dates suivent la convention UTC du projet.
+    expires_at = Column(DateTime, nullable=False)
+
+    accepted_at = Column(DateTime, nullable=True)
+    revoked_at = Column(DateTime, nullable=True)
+
+    organization = relationship(
+        "Organization",
+        back_populates="invitations",
+    )
+
+    invited_by = relationship(
+        "User",
+        back_populates="sent_invitations",
+    )
+
+    notifications = relationship(
+        "OrganizationNotification",
+        back_populates="invitation",
+        passive_deletes=True,
+    )
+
+
+class OrganizationNotification(Base):
+    __tablename__ = "organization_notifications"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "kind",
+            "invitation_id",
+            name="uq_organization_notifications_user_kind_invitation",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    invitation_id = Column(
+        Integer,
+        ForeignKey("organization_invitations.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    kind = Column(String(40), nullable=False)
+    title = Column(String(180), nullable=False)
+    message = Column(String(500), nullable=False)
+    read_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    organization = relationship("Organization", back_populates="notifications")
+    user = relationship("User", back_populates="notifications")
+    invitation = relationship(
+        "OrganizationInvitation",
+        back_populates="notifications",
+    )
+
+
 class Meeting(Base):
     __tablename__ = "meetings"
 
     id = Column(Integer, primary_key=True, index=True)
-    organization_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"))
+    organization_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     title = Column(String, index=True)
     transcription = Column(Text)
     date = Column(DateTime, default=datetime.utcnow)

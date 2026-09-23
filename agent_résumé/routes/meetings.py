@@ -4,28 +4,37 @@ import unicodedata
 from uuid import uuid4
 from pathlib import Path
 from time import sleep
+from tempfile import TemporaryDirectory
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+from starlette.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 from auth.dependencies import AuthContext, get_auth_context
+from audio_processing import (
+    AudioValidationError,
+    MAX_AUDIO_BYTES,
+    MAX_AUDIO_SEGMENTS,
+    audio_input_format,
+    merge_audio_segments,
+)
 from database import get_db
 from models import Meeting
 from schema import MeetingCreate, MeetingRead
 from tools import get_reports_dir
-from transcrip import transcribe_audio
+from transcrib2 import transcribe_audio
 
 
 router = APIRouter()
 
 MODELS = [
     os.getenv("OPENROUTER_MODEL_ID") or os.getenv("OPENROUTER_MODEL"),
+    os.getenv("MISTRAL_MODEL_ID"),
+    os.getenv("MISTRAL_MODEL_ID2"),
+    os.getenv("MISTRAL_MODEL_ID3"),
     os.getenv("NEX_AGI_MODEL_ID"),
     os.getenv("NEX_AGI_MODEL_ID2"),
-    # os.getenv("MISTRAL_MODEL_ID2"),
-    # os.getenv("MISTRAL_MODEL_ID3"),
-    # os.getenv("ZAI_MODEL"),
 ]
 MODELS = [model for model in MODELS if model]
 
@@ -62,7 +71,7 @@ def run_with_model_fallback(prompt):
 
     if not MODELS:
         raise RuntimeError(
-            "Aucun modele configure. Verifie OPENROUTER_MODEL_ID, "
+            "Aucun modele configure. Verifie MISTRAL_MODEL_ID, OPENROUTER_MODEL_ID, "
             "NEX_AGI_MODEL_ID ou NEX_AGI_MODEL_ID2 dans l'environnement Docker."
         )
 
@@ -175,21 +184,61 @@ def read_meeting(
 @router.post("/meetings/{meeting_id}/audio", response_model=MeetingRead)
 async def upload_audio(
     meeting_id: int,
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(None),
+    files: list[UploadFile] | None = File(None),
     db: Session = Depends(get_db),
     auth_context: AuthContext = Depends(get_auth_context),
 ):
     db_meeting = get_meeting_for_current_org(meeting_id, db, auth_context)
-    audio_bytes = await file.read()
+    if (file is None) == (not files):
+        raise HTTPException(status_code=400, detail="Envoyez un fichier audio ou les parties d’un enregistrement.")
+    uploads = files if files else [file]
+    if len(uploads) > MAX_AUDIO_SEGMENTS:
+        raise HTTPException(status_code=400, detail="Un enregistrement ne peut pas dépasser 100 parties.")
 
-    transcription = run_with_retries(
+    try:
+        with TemporaryDirectory(prefix="ruinion-audio-upload-") as temporary:
+            parts = []
+            total_bytes = 0
+            for index, upload in enumerate(uploads):
+                if files:
+                    audio_input_format(upload.content_type)
+                path = Path(temporary) / f"part-{index}"
+                size = 0
+                with path.open("wb") as target:
+                    while chunk := await upload.read(1024 * 1024):
+                        total_bytes += len(chunk)
+                        size += len(chunk)
+                        if total_bytes > MAX_AUDIO_BYTES:
+                            raise HTTPException(status_code=413, detail="La taille totale de l’audio dépasse 500 Mo.")
+                        await run_in_threadpool(target.write, chunk)
+                if not size:
+                    raise AudioValidationError("Une partie de l’audio est vide.")
+                parts.append((path, upload.content_type))
+
+            if files:
+                audio_bytes = await run_in_threadpool(merge_audio_segments, parts)
+                file_name, content_type = "note-vocale.mp3", "audio/mpeg"
+            else:
+                audio_bytes = await run_in_threadpool(parts[0][0].read_bytes)
+                file_name, content_type = file.filename, file.content_type
+    except AudioValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    finally:
+        for upload in uploads:
+            await upload.close()
+
+    transcription = await run_in_threadpool(
+        run_with_retries,
         lambda: transcribe_audio(
             audio_bytes=audio_bytes,
-            file_name=file.filename,
-            content_type=file.content_type,
+            file_name=file_name,
+            content_type=content_type,
             language="fr",
         ),
-        "La transcription Mistral",
+        "La transcription ElevenLabs",
     )
 
     db_meeting.transcription = transcription
@@ -220,28 +269,23 @@ def summarize_meeting(
     meeting_date = (db_meeting.created_at or db_meeting.date).strftime("%d/%m/%Y %H:%M")
 
     prompt_summary = f"""
-    Tu es l'agent IA de Ruinion AI. Tu dois analyser cette reunion, produire les
-    resumes, puis utiliser ton outil BuildWord pour generer le document Word final.
+    Tu es l'agent IA de Ruinion AI. Analyse cette reunion, redige en francais le
+    resume et le compte rendu, puis appelle obligatoirement l'outil BuildWord
+    pour creer le document Word final.
 
-    Tu dois imperativement appeler l'outil BuildWord.
-    Le fichier Word doit etre cree avec filename="{report_filename}".
-    N'ajoute pas l'extension .docx dans filename.
+    Appelle BuildWord avec template="meeting_report",
+    filename="{report_filename}" (sans extension .docx),
+    title="{db_meeting.title}", organization="{organization_name}",
+    date="{meeting_date}" et participants="{participants}".
+    Dans body, place le resume et le compte rendu sous les etiquettes exactes
+    RESUME_COURT: et COMPTE_RENDU_DETAILLE: avec les six sections ci-dessous.
+    L'outil BuildWord applique lui-meme la presentation professionnelle.
 
     Parametres du compte rendu :
     - Organisation : {organization_name}
     - Titre de reunion : {db_meeting.title}
     - Date : {meeting_date}
     - Participants : {participants}
-
-    Le document Word doit etre professionnel et contenir :
-    1. Titre du document
-    2. Informations de reunion
-    3. Resume court
-    4. Compte rendu detaille
-    5. Decisions prises
-    6. Actions a faire
-    7. Questions ouvertes
-    8. Transcription source en annexe
 
     A partir de la transcription ci-dessous, produis :
 
@@ -252,23 +296,42 @@ def summarize_meeting(
 
     COMPTE_RENDU_DETAILLE:
     1. Resume long
+    Une synthese objective des echanges.
     2. Points importants
+    Les principaux sujets abordes, en quelques puces.
     3. Decisions prises
+    Une decision par puce, ou "Non precise".
     4. Actions a faire
+    Une action par ligne dans ce format exact :
+    - Action : description | Responsable : nom ou Non precise | Echeance : date ou Non precise
     5. Questions ouvertes
+    Les sujets a clarifier, ou "Non precise".
     6. Risques ou blocages
+    Les risques mentionnes, ou "Non precise".
 
-    N'invente rien. Si une information n'est pas presente, ecris "Non precise".
-    Apres avoir appele BuildWord, ta reponse finale doit respecter exactement ce format :
+    N'invente ni decision, ni responsable, ni echeance. Si une information n'est
+    pas presente, ecris "Non precise". Ne reproduis pas la transcription brute.
+    Apres l'appel reussi a BuildWord, retourne exactement ces rubriques :
 
     RESUME_COURT:
     ...
 
     COMPTE_RENDU_DETAILLE:
+    1. Resume long
+    ...
+    2. Points importants
+    ...
+    3. Decisions prises
+    ...
+    4. Actions a faire
+    ...
+    5. Questions ouvertes
+    ...
+    6. Risques ou blocages
     ...
 
     WORD_PATH:
-    chemin du fichier retourne par BuildWord
+    chemin exact du fichier retourne par BuildWord
 
     Transcription :
     {transcription}

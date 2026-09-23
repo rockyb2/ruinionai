@@ -48,7 +48,8 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
         membership = OrganizationMember(
             user_id=user.id,
             organization_id=organization.id,
-            role="admin",
+            role="owner",
+            status="active",
         )
         db.add(membership)
         db.commit()

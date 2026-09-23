@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Check,
@@ -7,18 +7,18 @@ import {
   FileAudio,
   FileText,
   Info,
-  Lightbulb,
   LoaderCircle,
-  Mic,
   Plus,
   Sparkles,
-  Square,
   SquarePen,
   UploadCloud,
   X,
 } from '@lucide/vue'
 
 import { createMeeting, downloadMeetingReport, generateSummary, uploadAudio } from '@/service/api'
+import AudioRecorder from '@/components/AudioRecorder.vue'
+import AudioPreview from '@/components/AudioPreview.vue'
+import { MAX_AUDIO_BYTES } from '@/utils/audio'
 
 const router = useRouter()
 
@@ -27,18 +27,24 @@ const participants = ref(['Awa', 'Koffi', 'Sarah'])
 const newParticipant = ref('')
 const selectedFile = ref(null)
 const fileInput = ref(null)
-const isRecording = ref(false)
-const recordingSeconds = ref(0)
-const mediaRecorder = ref(null)
-const mediaStream = ref(null)
-const audioChunks = ref([])
+const audioRecorder = ref(null)
+const importedPreview = ref(null)
+const recordedFiles = ref([])
+const recordingReady = ref(false)
+const recordingActive = ref(false)
+const hasRecording = ref(false)
 const isSubmitting = ref(false)
 const isDownloadingReport = ref(false)
 const statusMessage = ref('')
 const errorMessage = ref('')
 const meetingResult = ref(null)
 
-let recordingTimer = null
+const importDisabled = computed(() => isSubmitting.value || recordingActive.value || hasRecording.value)
+const canSubmit = computed(() => !isSubmitting.value && !recordingActive.value
+  && (Boolean(selectedFile.value) || (recordingReady.value && recordedFiles.value.length > 0)))
+const importedSegments = computed(() => selectedFile.value ? [{ file: selectedFile.value, duration: 0 }] : [])
+const audioName = computed(() => selectedFile.value?.name
+  || (hasRecording.value ? 'Note vocale enregistrée depuis le micro' : 'Ajoutez un fichier ou lancez un enregistrement.'))
 
 const steps = [
   'Transcription de l’audio',
@@ -47,21 +53,6 @@ const steps = [
   'Actions et décisions identifiées',
   'Document Word pret a telecharger',
 ]
-
-const waveBars = Array.from({ length: 44 }, (_, index) => ({
-  id: index,
-  height: 10 + ((index * 9) % 34),
-  delay: index * 35,
-}))
-
-const leftWaveBars = waveBars.slice(0, 22)
-const rightWaveBars = waveBars.slice(22)
-
-const formattedRecordingTime = computed(() => {
-  const minutes = String(Math.floor(recordingSeconds.value / 60)).padStart(2, '0')
-  const seconds = String(recordingSeconds.value % 60).padStart(2, '0')
-  return `00:${minutes}:${seconds}`
-})
 
 const selectedFileName = computed(() => {
   return selectedFile.value?.name || 'Glissez votre fichier ici ou cliquez pour parcourir'
@@ -84,12 +75,29 @@ function removeParticipant(participant) {
 }
 
 function openFilePicker() {
+  if (importDisabled.value) return
   fileInput.value?.click()
 }
 
 function setAudioFile(file) {
+  if (importDisabled.value) return
+  if (!file.size || file.size > MAX_AUDIO_BYTES) {
+    errorMessage.value = 'Choisissez un fichier audio non vide de 500 Mo maximum.'
+    return
+  }
+  if (!file.type.startsWith('audio/') && !/\.(mp3|wav|m4a|mp4|webm|ogg|flac|aac)$/i.test(file.name)) {
+    errorMessage.value = 'Choisissez un fichier audio compatible.'
+    return
+  }
   selectedFile.value = file
   errorMessage.value = ''
+}
+
+function removeImportedFile() {
+  if (isSubmitting.value) return
+  importedPreview.value?.stop()
+  selectedFile.value = null
+  if (fileInput.value) fileInput.value.value = ''
 }
 
 function handleFileChange(event) {
@@ -108,74 +116,8 @@ function handleFileDrop(event) {
   }
 }
 
-async function toggleRecording() {
-  if (isRecording.value) {
-    stopRecording()
-    return
-  }
-
-  await startRecording()
-}
-
-async function startRecording() {
-  try {
-    errorMessage.value = ''
-    mediaStream.value = await navigator.mediaDevices.getUserMedia({ audio: true })
-    audioChunks.value = []
-
-    const recorder = new MediaRecorder(mediaStream.value)
-    mediaRecorder.value = recorder
-
-    recorder.addEventListener('dataavailable', (event) => {
-      if (event.data.size > 0) {
-        audioChunks.value.push(event.data)
-      }
-    })
-
-    recorder.addEventListener('stop', () => {
-      const audioBlob = new Blob(audioChunks.value, { type: recorder.mimeType || 'audio/webm' })
-      setAudioFile(
-        new File([audioBlob], `note-vocale-${Date.now()}.webm`, {
-          type: audioBlob.type,
-        }),
-      )
-      stopStream()
-    })
-
-    recorder.start()
-    isRecording.value = true
-    recordingSeconds.value = 0
-    recordingTimer = window.setInterval(() => {
-      recordingSeconds.value += 1
-    }, 1000)
-  } catch {
-    errorMessage.value = "Impossible d'accéder au micro."
-    stopStream()
-  }
-}
-
-function stopRecording() {
-  if (mediaRecorder.value && mediaRecorder.value.state !== 'inactive') {
-    mediaRecorder.value.stop()
-  }
-
-  isRecording.value = false
-  clearRecordingTimer()
-}
-
-function stopStream() {
-  mediaStream.value?.getTracks().forEach((track) => track.stop())
-  mediaStream.value = null
-}
-
-function clearRecordingTimer() {
-  if (recordingTimer) {
-    window.clearInterval(recordingTimer)
-    recordingTimer = null
-  }
-}
-
 async function processMeeting() {
+  if (isSubmitting.value) return
   const title = meetingTitle.value.trim()
 
   if (!title) {
@@ -183,13 +125,15 @@ async function processMeeting() {
     return
   }
 
-  if (!selectedFile.value) {
-    errorMessage.value = 'Enregistrez une note vocale ou importez un fichier audio.'
+  if (!canSubmit.value) {
+    errorMessage.value = 'Terminez votre enregistrement ou importez un fichier audio avant de continuer.'
     return
   }
 
   try {
     isSubmitting.value = true
+    audioRecorder.value?.stopPlayback()
+    importedPreview.value?.stop()
     errorMessage.value = ''
     meetingResult.value = null
 
@@ -200,10 +144,11 @@ async function processMeeting() {
     })
 
     statusMessage.value = 'Transcription audio en cours...'
-    await uploadAudio(meeting.id, selectedFile.value)
+    await uploadAudio(meeting.id, selectedFile.value || recordedFiles.value)
 
     statusMessage.value = 'Génération des résumés court et détaillé...'
     meetingResult.value = await generateSummary(meeting.id)
+    if (!selectedFile.value) await audioRecorder.value?.clearDraft()
 
     statusMessage.value = 'Résumés et document Word générés avec succès.'
   } catch (error) {
@@ -240,14 +185,6 @@ async function downloadReport() {
   }
 }
 
-onBeforeUnmount(() => {
-  if (isRecording.value) {
-    stopRecording()
-  }
-
-  clearRecordingTimer()
-  stopStream()
-})
 </script>
 
 <template>
@@ -330,61 +267,29 @@ onBeforeUnmount(() => {
 
       <section class="rounded-2xl border border-slate-200 bg-white p-5">
         <div class="grid gap-6 lg:grid-cols-[1fr_1fr]">
-          <div class="grid place-items-center rounded-xl bg-slate-50 px-4 py-6 text-center">
-            <p class="text-sm font-black text-slate-700">Enregistrer depuis le micro</p>
+          <AudioRecorder
+            ref="audioRecorder"
+            v-model:files="recordedFiles"
+            v-model:ready="recordingReady"
+            v-model:active="recordingActive"
+            v-model:has-audio="hasRecording"
+            :disabled="isSubmitting || Boolean(selectedFile)"
+          />
 
-            <div class="mt-4 flex w-full items-center justify-center">
-              <div class="hidden flex-1 items-center justify-end gap-1 sm:flex">
-                <span
-                  v-for="bar in leftWaveBars"
-                  :key="`left-${bar.id}`"
-                  class="w-1 rounded-full bg-blue-200"
-                  :class="isRecording ? 'animate-pulse bg-blue-400' : ''"
-                  :style="{ height: `${bar.height}px`, animationDelay: `${bar.delay}ms` }"
-                />
-              </div>
-
-              <button
-                class="mx-5 grid h-24 w-24 place-items-center rounded-full border-[10px] border-blue-50 bg-blue-600 text-white shadow-lg shadow-blue-100 transition hover:scale-105 hover:bg-blue-700"
-                type="button"
-                :aria-label="isRecording ? 'Arrêter l’enregistrement' : 'Démarrer l’enregistrement'"
-                @click="toggleRecording"
-              >
-                <Mic v-if="!isRecording" class="h-9 w-9" />
-                <Square v-else class="h-8 w-8 fill-white" />
-              </button>
-
-              <div class="hidden flex-1 items-center justify-start gap-1 sm:flex">
-                <span
-                  v-for="bar in rightWaveBars"
-                  :key="`right-${bar.id}`"
-                  class="w-1 rounded-full bg-blue-200"
-                  :class="isRecording ? 'animate-pulse bg-blue-400' : ''"
-                  :style="{ height: `${bar.height}px`, animationDelay: `${bar.delay}ms` }"
-                />
-              </div>
-            </div>
-
-            <p class="mt-2 text-2xl font-black text-slate-900">{{ formattedRecordingTime }}</p>
-            <p class="mt-4 inline-flex items-center gap-2 text-xs font-semibold text-slate-500">
-              <Lightbulb class="h-4 w-4 text-amber-400" />
-              Parlez clairement et rapprochez-vous du micro
-            </p>
-          </div>
-
-          <div>
+          <div class="min-w-0">
             <p class="text-sm font-black text-slate-800">Importer un fichier audio</p>
 
             <button
-              class="mt-4 flex min-h-44 w-full flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-blue-200 bg-white px-5 py-8 text-center transition hover:border-blue-400 hover:bg-blue-50/40"
+              class="mt-4 flex min-h-44 w-full flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-blue-200 bg-white px-5 py-8 text-center transition hover:border-blue-400 hover:bg-blue-50/40 disabled:cursor-not-allowed disabled:opacity-60"
               type="button"
+              :disabled="importDisabled"
               @click="openFilePicker"
               @dragover.prevent
               @drop.prevent="handleFileDrop"
             >
               <UploadCloud class="h-12 w-12 text-blue-400" />
-              <span>
-                <span class="block break-all text-sm font-black text-slate-700">
+              <span class="w-full min-w-0">
+                <span class="block break-words whitespace-normal text-sm font-black text-slate-700">
                   {{ selectedFileName }}
                 </span>
                 <span class="mt-2 block text-xs font-semibold text-slate-500">
@@ -398,8 +303,18 @@ onBeforeUnmount(() => {
               class="hidden"
               accept="audio/*"
               type="file"
+              :disabled="importDisabled"
               @change="handleFileChange"
             />
+            <p v-if="hasRecording || recordingActive" class="mt-3 text-xs text-slate-500">
+              Supprimez la note vocale avant d’importer un autre audio.
+            </p>
+            <template v-if="selectedFile">
+              <AudioPreview ref="importedPreview" class="mt-4" :segments="importedSegments" :disabled="isSubmitting" />
+              <button type="button" :disabled="isSubmitting" class="mt-3 text-sm font-bold text-red-600" @click="removeImportedFile">
+                Retirer le fichier
+              </button>
+            </template>
           </div>
         </div>
       </section>
@@ -432,10 +347,10 @@ onBeforeUnmount(() => {
           <FileAudio class="h-8 w-8 text-blue-600" />
           <div>
             <p class="text-sm font-black text-blue-700">
-              {{ selectedFile ? 'Audio prêt' : 'Aucun audio sélectionné' }}
+              {{ selectedFile || recordingReady ? 'Audio prêt' : hasRecording || recordingActive ? 'Enregistrement à terminer' : 'Aucun audio sélectionné' }}
             </p>
             <p class="mt-1 break-all text-xs font-semibold text-slate-500">
-              {{ selectedFile ? selectedFile.name : 'Ajoutez un fichier ou lancez un enregistrement.' }}
+              {{ audioName }}
             </p>
           </div>
         </div>
@@ -450,7 +365,7 @@ onBeforeUnmount(() => {
 
       <button
         class="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-black text-white shadow-lg shadow-blue-100 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
-        :disabled="isSubmitting"
+        :disabled="!canSubmit"
         type="button"
         @click="processMeeting"
       >

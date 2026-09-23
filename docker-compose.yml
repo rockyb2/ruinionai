@@ -30,9 +30,10 @@ services:
       MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
       MISTRAL_MODEL_ID: ${MISTRAL_MODEL_ID:-mistral/mistral-small-2603}
       MISTRAL_MODEL_ID2: ${MISTRAL_MODEL_ID2:-}
+      MISTRAL_MODEL_ID3: ${MISTRAL_MODEL_ID3:-}
       ZAI_API_KEY: ${ZAI_API_KEY:-}
       ZAI_MODEL: ${ZAI_MODEL:-}
-      MISTRAL_AUDIO_MODEL: ${MISTRAL_AUDIO_MODEL:-voxtral-mini-latest}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:?ELEVENLABS_API_KEY is not set in .env file}
       REPORTS_DIR: /app/storage/reports
 
     restart: unless-stopped

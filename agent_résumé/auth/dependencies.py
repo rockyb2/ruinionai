@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
@@ -48,16 +48,61 @@ def get_current_user(
 def get_auth_context(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    organization_id: int | None = Header(
+        default=None,
+        alias="X-Organization-Id",
+        gt=0,
+    ),
 ) -> AuthContext:
-    membership = (
-        db.query(OrganizationMember)
-        .filter(OrganizationMember.user_id == current_user.id)
-        .order_by(OrganizationMember.id.asc())
-        .first()
+    query = db.query(OrganizationMember).filter(
+        OrganizationMember.user_id == current_user.id,
+        OrganizationMember.status == "active",
     )
 
-    if membership is None:
-        raise HTTPException(status_code=403, detail="User has no organization")
+    if organization_id is not None:
+        query = query.filter(
+            OrganizationMember.organization_id == organization_id
+        )
 
-    return AuthContext(user=current_user, membership=membership)
+    memberships = query.limit(2).all()
 
+    if not memberships:
+        raise HTTPException(
+            status_code=403,
+            detail="Aucun acces actif a cette organisation.",
+        )
+
+    if len(memberships) > 1:
+        raise HTTPException(
+            status_code=400,
+            detail="Precisez l'organisation avec X-Organization-Id.",
+        )
+
+    return AuthContext(
+        user=current_user,
+        membership=memberships[0],
+    )
+
+
+def require_organization_admin(
+    auth_context: AuthContext = Depends(get_auth_context),
+) -> AuthContext:
+    if auth_context.membership.role not in ("owner", "admin"):
+        raise HTTPException(
+            status_code=403,
+            detail="Droits administrateur requis.",
+        )
+
+    return auth_context
+
+
+def require_organization_owner(
+    auth_context: AuthContext = Depends(get_auth_context),
+) -> AuthContext:
+    if auth_context.membership.role != "owner":
+        raise HTTPException(
+            status_code=403,
+            detail="Droits proprietaire requis.",
+        )
+
+    return auth_context

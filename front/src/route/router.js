@@ -1,7 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 import Dashlayouts from '../layouts/Dashlayouts.vue'
+import Equipe from '../views/Equipe.vue'
 import Historique from '../views/Historique.vue'
+import Invitation from '../views/Invitation.vue'
 import Login from '../views/Login.vue'
 import Reunion from '../views/Reunion.vue'
 import Setting from '../views/Setting.vue'
@@ -29,11 +31,21 @@ const routes = [
         component: Historique,
       },
       {
+        path: 'equipe',
+        name: 'equipe',
+        component: Equipe,
+      },
+      {
         path: 'setting',
         name: 'setting',
         component: Setting,
       },
     ],
+  },
+  {
+    path: '/invitation',
+    name: 'invitation',
+    component: Invitation,
   },
   {
     path: '/login',

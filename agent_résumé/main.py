@@ -2,6 +2,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from auth.routes import router as auth_router
 from routes.meetings import router as meetings_router
+from routes.organization import router as organization_router
+from routes.invitations import router as invitations_router
+from routes.notifications import router as notifications_router
+from routes.invitation_acceptance import (
+    router as invitation_acceptance_router,
+)
 
 
 app = FastAPI(title="RuinionAI Backend")
@@ -25,3 +31,7 @@ def health():
 
 app.include_router(auth_router)
 app.include_router(meetings_router)
+app.include_router(organization_router)
+app.include_router(invitations_router)
+app.include_router(notifications_router)
+app.include_router(invitation_acceptance_router)
