@@ -33,20 +33,20 @@ def get_meeting_for_current_org(
         .first()
     )
     if db_meeting is None:
-        raise HTTPException(status_code=404, detail="Meeting not found")
+        raise HTTPException(status_code=404, detail="Réunion introuvable.")
 
     return db_meeting
 
 
 def resolve_report_path(report_path: str | None) -> Path:
     if not report_path:
-        raise HTTPException(status_code=404, detail="Report not generated")
+        raise HTTPException(status_code=404, detail="Le compte rendu n’a pas encore été généré.")
 
     reports_dir = get_reports_dir().resolve()
     file_path = Path(report_path).resolve()
 
     if not file_path.is_relative_to(reports_dir) or not file_path.exists():
-        raise HTTPException(status_code=404, detail="Report not found")
+        raise HTTPException(status_code=404, detail="Compte rendu introuvable.")
 
     return file_path
 

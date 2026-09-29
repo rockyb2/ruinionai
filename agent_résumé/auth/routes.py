@@ -23,13 +23,13 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
 
     existing_user = db.query(User).filter(User.email == email).first()
     if existing_user is not None:
-        raise HTTPException(status_code=409, detail="Email already registered")
+        raise HTTPException(status_code=409, detail="Cette adresse e-mail est déjà utilisée.")
 
     existing_organization = (
         db.query(Organization).filter(Organization.name == organization_name).first()
     )
     if existing_organization is not None:
-        raise HTTPException(status_code=409, detail="Organization already exists")
+        raise HTTPException(status_code=409, detail="Cette organisation existe déjà.")
 
     user = User(
         first_name=payload.first_name.strip(),
@@ -55,7 +55,7 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status_code=409, detail="Account already exists")
+        raise HTTPException(status_code=409, detail="Ce compte existe déjà.")
 
     db.refresh(user)
     db.refresh(organization)
@@ -83,7 +83,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         )
 
     if not user.is_active:
-        raise HTTPException(status_code=403, detail="Inactive user")
+        raise HTTPException(status_code=403, detail="Ce compte utilisateur est inactif.")
 
     return {
         "access_token": create_access_token(subject=str(user.id)),

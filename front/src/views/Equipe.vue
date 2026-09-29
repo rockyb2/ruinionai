@@ -11,6 +11,7 @@ import {
   renewOrganizationInvitation, revokeOrganizationInvitation,
   updateOrganizationMemberRole, updateOrganizationMemberStatus,
 } from '@/service/api'
+import { roleLabels } from '@/utils/organization'
 
 const router = useRouter()
 const route = useRoute()
@@ -49,7 +50,6 @@ const tabs = [
   { id: 'members', label: 'Membres', icon: Users },
   { id: 'invitations', label: 'Invitations', icon: Mail },
 ]
-const roleLabels = { owner: 'Propriétaire', admin: 'Admin', member: 'Membre' }
 const statusLabels = {
   active: 'Actif', inactive: 'Inactif', pending: 'En attente',
   accepted: 'Acceptée', expired: 'Expirée', revoked: 'Révoquée', declined: 'Refusée',

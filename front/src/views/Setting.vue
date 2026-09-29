@@ -18,6 +18,7 @@ import {
   getOrganizationSettings,
   updateOrganizationSettings,
 } from '@/service/api'
+import { roleLabel } from '@/utils/organization'
 
 const router = useRouter()
 const session = ref(null)
@@ -131,7 +132,7 @@ onMounted(loadSettings)
           class="rounded-full px-3 py-1.5 text-xs font-black uppercase"
           :class="isOwner ? 'bg-violet-50 text-violet-700' : 'bg-slate-100 text-slate-600'"
         >
-          {{ isOwner ? 'Propriétaire' : session.role }}
+          {{ roleLabel(session.role) }}
         </span>
       </div>
     </header>
@@ -314,7 +315,7 @@ onMounted(loadSettings)
             </div>
             <div class="rounded-xl bg-slate-50 px-4 py-3">
               <dt class="text-xs font-black uppercase text-slate-400">Rôle</dt>
-              <dd class="mt-1 text-sm font-black uppercase text-blue-600">{{ session?.role }}</dd>
+              <dd class="mt-1 text-sm font-black uppercase text-blue-600">{{ roleLabel(session?.role) }}</dd>
             </div>
           </dl>
           <p v-if="!isOwner" class="mt-4 flex gap-2 rounded-xl bg-amber-50 p-4 text-xs font-bold leading-5 text-amber-800">
