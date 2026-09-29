@@ -3,28 +3,29 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Check,
-  Download,
   FileAudio,
-  FileText,
   Info,
   LoaderCircle,
-  Plus,
+  Send,
   Sparkles,
   SquarePen,
   UploadCloud,
   X,
 } from '@lucide/vue'
 
-import { createMeeting, downloadMeetingReport, generateSummary, uploadAudio } from '@/service/api'
+import { createMeeting, generateSummary, uploadAudio } from '@/service/api'
 import AudioRecorder from '@/components/AudioRecorder.vue'
 import AudioPreview from '@/components/AudioPreview.vue'
+import MeetingInvitees from '@/components/MeetingInvitees.vue'
 import { MAX_AUDIO_BYTES } from '@/utils/audio'
 
 const router = useRouter()
 
 const meetingTitle = ref('Réunion commerciale')
-const participants = ref(['Awa', 'Koffi', 'Sarah'])
-const newParticipant = ref('')
+const selectedMembers = ref([])
+const createdMeeting = ref(null)
+const isInviting = ref(false)
+const invitationMessage = ref('')
 const selectedFile = ref(null)
 const fileInput = ref(null)
 const audioRecorder = ref(null)
@@ -34,14 +35,12 @@ const recordingReady = ref(false)
 const recordingActive = ref(false)
 const hasRecording = ref(false)
 const isSubmitting = ref(false)
-const isDownloadingReport = ref(false)
 const statusMessage = ref('')
 const errorMessage = ref('')
-const meetingResult = ref(null)
 
-const importDisabled = computed(() => isSubmitting.value || recordingActive.value || hasRecording.value)
-const canSubmit = computed(() => !isSubmitting.value && !recordingActive.value
-  && (Boolean(selectedFile.value) || (recordingReady.value && recordedFiles.value.length > 0)))
+const importDisabled = computed(() => isSubmitting.value || recordingActive.value || hasRecording.value || Boolean(createdMeeting.value?.has_source_audio))
+const canSubmit = computed(() => !isSubmitting.value && !isInviting.value && !recordingActive.value
+  && (createdMeeting.value?.has_source_audio || Boolean(selectedFile.value) || (recordingReady.value && recordedFiles.value.length > 0)))
 const importedSegments = computed(() => selectedFile.value ? [{ file: selectedFile.value, duration: 0 }] : [])
 const audioName = computed(() => selectedFile.value?.name
   || (hasRecording.value ? 'Note vocale enregistrée depuis le micro' : 'Ajoutez un fichier ou lancez un enregistrement.'))
@@ -58,20 +57,32 @@ const selectedFileName = computed(() => {
   return selectedFile.value?.name || 'Glissez votre fichier ici ou cliquez pour parcourir'
 })
 
-function addParticipant() {
-  const value = newParticipant.value.trim()
-
-  if (!value || participants.value.includes(value)) {
-    newParticipant.value = ''
-    return
+async function ensureMeeting() {
+  if (createdMeeting.value) return createdMeeting.value
+  createdMeeting.value = await createMeeting({
+    title: meetingTitle.value.trim(),
+    participant_member_ids: selectedMembers.value.map(member => member.member_id),
+  })
+  if (selectedMembers.value.length) {
+    invitationMessage.value = `Invitation envoyée à ${selectedMembers.value.length} membre(s) dans l’application.`
   }
-
-  participants.value.push(value)
-  newParticipant.value = ''
+  window.dispatchEvent(new CustomEvent('meeting-created'))
+  return createdMeeting.value
 }
 
-function removeParticipant(participant) {
-  participants.value = participants.value.filter((item) => item !== participant)
+async function inviteMembers() {
+  if (isInviting.value || isSubmitting.value || createdMeeting.value) return
+  if (!meetingTitle.value.trim() || !selectedMembers.value.length) return
+  isInviting.value = true
+  errorMessage.value = ''
+  try {
+    await ensureMeeting()
+  } catch (error) {
+    if (error.status === 401) router.push('/login')
+    errorMessage.value = error.message || 'Impossible d’envoyer les invitations.'
+  } finally {
+    isInviting.value = false
+  }
 }
 
 function openFilePicker() {
@@ -94,7 +105,7 @@ function setAudioFile(file) {
 }
 
 function removeImportedFile() {
-  if (isSubmitting.value) return
+  if (isSubmitting.value || createdMeeting.value?.has_source_audio) return
   importedPreview.value?.stop()
   selectedFile.value = null
   if (fileInput.value) fileInput.value.value = ''
@@ -117,7 +128,7 @@ function handleFileDrop(event) {
 }
 
 async function processMeeting() {
-  if (isSubmitting.value) return
+  if (isSubmitting.value || isInviting.value) return
   const title = meetingTitle.value.trim()
 
   if (!title) {
@@ -135,22 +146,22 @@ async function processMeeting() {
     audioRecorder.value?.stopPlayback()
     importedPreview.value?.stop()
     errorMessage.value = ''
-    meetingResult.value = null
 
     statusMessage.value = 'Création de la réunion...'
-    const meeting = await createMeeting({
-      title,
-      participants: participants.value,
-    })
+    const meeting = await ensureMeeting()
 
-    statusMessage.value = 'Transcription audio en cours...'
-    await uploadAudio(meeting.id, selectedFile.value || recordedFiles.value)
+    statusMessage.value = 'Envoi et sauvegarde de l’audio…'
+    if (!createdMeeting.value.has_source_audio) {
+      createdMeeting.value = await uploadAudio(meeting.id, selectedFile.value || recordedFiles.value)
+    }
 
-    statusMessage.value = 'Génération des résumés court et détaillé...'
-    meetingResult.value = await generateSummary(meeting.id)
+    statusMessage.value = 'Mise en attente du traitement…'
+    await generateSummary(meeting.id)
     if (!selectedFile.value) await audioRecorder.value?.clearDraft()
 
-    statusMessage.value = 'Résumés et document Word générés avec succès.'
+    statusMessage.value = 'Traitement lancé. Vous pouvez suivre son avancement dans l’historique.'
+    window.dispatchEvent(new CustomEvent('meeting-created'))
+    await router.push({ name: 'historique', query: { meeting: meeting.id } })
   } catch (error) {
     if (error.status === 401) {
       router.push('/login')
@@ -161,27 +172,6 @@ async function processMeeting() {
     statusMessage.value = ''
   } finally {
     isSubmitting.value = false
-  }
-}
-
-async function downloadReport() {
-  if (!meetingResult.value?.id) {
-    return
-  }
-
-  try {
-    isDownloadingReport.value = true
-    errorMessage.value = ''
-    await downloadMeetingReport(meetingResult.value.id)
-  } catch (error) {
-    if (error.status === 401) {
-      router.push('/login')
-      return
-    }
-
-    errorMessage.value = error.message || 'Impossible de telecharger le compte rendu Word.'
-  } finally {
-    isDownloadingReport.value = false
   }
 }
 
@@ -198,13 +188,7 @@ async function downloadReport() {
         </p>
       </div>
 
-      <div class="flex items-center gap-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
-        <Sparkles class="h-5 w-5 text-blue-600" />
-        <div>
-          <p class="text-xs font-black uppercase text-blue-600">Workspace sécurisé</p>
-          <p class="text-xs font-semibold text-slate-500">Toutes les réunions restent dans votre organisation.</p>
-        </div>
-      </div>
+      
     </header>
 
     <div class="mt-5 grid gap-5 xl:grid-cols-[1fr_1.15fr]">
@@ -217,6 +201,8 @@ async function downloadReport() {
             <SquarePen class="h-4 w-4 text-slate-400" />
             <input
               v-model="meetingTitle"
+              :disabled="Boolean(createdMeeting) || isSubmitting || isInviting"
+              maxlength="250"
               class="w-full border-0 bg-transparent text-sm font-semibold text-slate-700 outline-none placeholder:text-slate-400"
               placeholder="Réunion commerciale"
               type="text"
@@ -224,45 +210,14 @@ async function downloadReport() {
           </span>
         </label>
 
-        <div class="mt-6">
-          <p class="text-sm font-black text-slate-700">
-            Participants <span class="font-semibold text-slate-400">(facultatif)</span>
-          </p>
-
-          <div class="mt-3 flex flex-wrap gap-2">
-            <span
-              v-for="participant in participants"
-              :key="participant"
-              class="inline-flex items-center gap-2 rounded-lg bg-blue-50 px-4 py-2 text-sm font-black text-blue-600"
-            >
-              {{ participant }}
-              <button
-                class="rounded-full text-blue-500 transition hover:text-blue-700"
-                type="button"
-                :aria-label="`Retirer ${participant}`"
-                @click="removeParticipant(participant)"
-              >
-                <X class="h-4 w-4" />
-              </button>
-            </span>
-
-            <form class="flex min-w-[220px] flex-1 gap-2" @submit.prevent="addParticipant">
-              <input
-                v-model="newParticipant"
-                class="min-w-0 flex-1 rounded-lg border border-dashed border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 outline-none transition focus:border-blue-400"
-                placeholder="Nom"
-                type="text"
-              />
-              <button
-                class="inline-flex items-center gap-2 rounded-lg border border-dashed border-blue-300 px-4 py-2 text-sm font-black text-blue-600 transition hover:bg-blue-50"
-                type="submit"
-              >
-                <Plus class="h-4 w-4" />
-                Ajouter
-              </button>
-            </form>
-          </div>
-        </div>
+        <MeetingInvitees v-model="selectedMembers" :disabled="Boolean(createdMeeting) || isSubmitting || isInviting" />
+        <button v-if="!createdMeeting" type="button" class="mt-4 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300" :disabled="isSubmitting || isInviting || !meetingTitle.trim() || !selectedMembers.length" @click="inviteMembers">
+          <LoaderCircle v-if="isInviting" class="h-4 w-4 animate-spin" /><Send v-else class="h-4 w-4" />
+          {{ isInviting ? 'Envoi des invitations…' : 'Inviter à la réunion' }}
+        </button>
+        <p v-if="invitationMessage" class="mt-3 rounded-lg bg-emerald-50 p-3 text-sm font-semibold text-emerald-700" role="status">{{ invitationMessage }}</p>
+        <p v-else-if="!createdMeeting" class="mt-2 text-xs leading-5 text-slate-500">Vous pouvez inviter votre équipe avant l’enregistrement. Les membres sélectionnés seront aussi invités si vous lancez directement la génération.</p>
+        <p v-if="createdMeeting" class="mt-3 text-xs leading-5 text-slate-500">Réunion créée. Vous pouvez maintenant enregistrer ou importer l’audio pour cette réunion.</p>
       </section>
 
       <section class="rounded-2xl border border-slate-200 bg-white p-5">
@@ -273,7 +228,7 @@ async function downloadReport() {
             v-model:ready="recordingReady"
             v-model:active="recordingActive"
             v-model:has-audio="hasRecording"
-            :disabled="isSubmitting || Boolean(selectedFile)"
+            :disabled="isSubmitting || Boolean(selectedFile) || Boolean(createdMeeting?.has_source_audio)"
           />
 
           <div class="min-w-0">
@@ -311,7 +266,7 @@ async function downloadReport() {
             </p>
             <template v-if="selectedFile">
               <AudioPreview ref="importedPreview" class="mt-4" :segments="importedSegments" :disabled="isSubmitting" />
-              <button type="button" :disabled="isSubmitting" class="mt-3 text-sm font-bold text-red-600" @click="removeImportedFile">
+              <button type="button" :disabled="isSubmitting || Boolean(createdMeeting?.has_source_audio)" class="mt-3 text-sm font-bold text-red-600 disabled:opacity-50" @click="removeImportedFile">
                 Retirer le fichier
               </button>
             </template>
@@ -361,6 +316,7 @@ async function downloadReport() {
       <div>
         <p v-if="statusMessage" class="text-sm font-bold text-blue-600">{{ statusMessage }}</p>
         <p v-if="errorMessage" class="text-sm font-bold text-red-600">{{ errorMessage }}</p>
+        <RouterLink v-if="createdMeeting?.has_source_audio" :to="{ name: 'historique', query: { meeting: createdMeeting.id } }" class="mt-2 inline-block text-sm font-bold text-blue-600 underline">Suivre le traitement dans l’historique</RouterLink>
       </div>
 
       <button
@@ -375,57 +331,5 @@ async function downloadReport() {
       </button>
     </div>
 
-    <div
-      v-if="meetingResult?.report_path"
-      class="mt-5 flex flex-col gap-4 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-5 sm:flex-row sm:items-center sm:justify-between"
-    >
-      <div class="flex items-center gap-3">
-        <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white text-emerald-600 shadow-sm">
-          <FileText class="h-5 w-5" />
-        </span>
-        <div>
-          <p class="text-sm font-black text-emerald-700">Compte rendu Word prêt</p>
-          <p class="mt-1 text-xs font-semibold text-slate-500">
-            Le document est enregistré dans l'espace sécurisé de votre organisation.
-          </p>
-        </div>
-      </div>
-
-      <button
-        class="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-black text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-        :disabled="isDownloadingReport"
-        type="button"
-        @click="downloadReport"
-      >
-        <LoaderCircle v-if="isDownloadingReport" class="h-4 w-4 animate-spin" />
-        <Download v-else class="h-4 w-4" />
-        Télécharger le Word
-      </button>
-    </div>
-
-    <div v-if="meetingResult" class="mt-5 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-      <article class="rounded-2xl border border-slate-200 bg-white p-5">
-        <h3 class="text-sm font-black uppercase text-slate-400">Transcription</h3>
-        <p class="mt-3 max-h-80 overflow-auto whitespace-pre-wrap text-sm font-semibold leading-6 text-slate-700">
-          {{ meetingResult.transcription || 'Transcription non disponible.' }}
-        </p>
-      </article>
-
-      <div class="grid gap-4">
-        <article class="rounded-2xl border border-blue-100 bg-blue-50/60 p-5">
-          <h3 class="text-sm font-black uppercase text-blue-500">Résumé court</h3>
-          <p class="mt-3 max-h-44 overflow-auto whitespace-pre-wrap text-sm font-semibold leading-6 text-slate-700">
-            {{ meetingResult.summary_short || meetingResult.summary || 'Résumé court non disponible.' }}
-          </p>
-        </article>
-
-        <article class="rounded-2xl border border-slate-200 bg-white p-5">
-          <h3 class="text-sm font-black uppercase text-slate-400">Compte rendu détaillé</h3>
-          <p class="mt-3 max-h-64 overflow-auto whitespace-pre-wrap text-sm font-semibold leading-6 text-slate-700">
-            {{ meetingResult.summary_long || meetingResult.summary || 'Compte rendu non disponible.' }}
-          </p>
-        </article>
-      </div>
-    </div>
   </section>
 </template>

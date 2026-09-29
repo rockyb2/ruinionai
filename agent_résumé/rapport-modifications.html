@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Ruinion AI — Rapport des modifications</title>
+  <style>
+    :root {
+      --blue: #1764ff;
+      --blue-dark: #0f43bb;
+      --blue-soft: #edf4ff;
+      --ink: #0f172a;
+      --muted: #5e6b82;
+      --line: #dce5f2;
+      --surface: #ffffff;
+      --canvas: #f5f8fc;
+      --green: #087f5b;
+      --green-soft: #e9fbf4;
+      --amber: #a15c00;
+      --amber-soft: #fff8e6;
+      --red: #c92a2a;
+      --red-soft: #fff0f0;
+      --shadow: 0 18px 48px rgba(30, 64, 175, .08);
+      --radius: 20px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 84% 4%, rgba(23, 100, 255, .11), transparent 28rem),
+        linear-gradient(180deg, #f9fbff 0, var(--canvas) 34rem);
+      font: 15px/1.65 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    a { color: inherit; }
+    code, pre { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+    code { color: var(--blue-dark); }
+
+    .shell { display: grid; grid-template-columns: 270px minmax(0, 1fr); min-height: 100vh; }
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 28px 22px;
+      border-right: 1px solid var(--line);
+      background: rgba(255, 255, 255, .9);
+      backdrop-filter: blur(16px);
+      overflow-y: auto;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 30px; }
+    .brand-mark {
+      display: grid;
+      width: 42px;
+      height: 42px;
+      place-items: center;
+      border-radius: 13px;
+      color: white;
+      background: linear-gradient(145deg, #0f49d7, #2780ff);
+      box-shadow: 0 10px 22px rgba(23, 100, 255, .28);
+      font-weight: 900;
+    }
+    .brand strong { display: block; font-size: 15px; }
+    .brand span { display: block; color: var(--muted); font-size: 11px; }
+    .nav-title {
+      margin: 24px 10px 8px;
+      color: #8a97ab;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    nav a {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      color: #526078;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 650;
+    }
+    nav a:hover, nav a.active { color: var(--blue); background: var(--blue-soft); }
+    nav a span { width: 20px; color: #90a0b8; font-size: 11px; }
+    nav a.active span { color: var(--blue); }
+    .sidebar-note {
+      margin-top: 28px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      color: var(--muted);
+      background: #fbfdff;
+      font-size: 11px;
+    }
+
+    main { width: 100%; max-width: 1260px; margin: 0 auto; padding: 48px 48px 80px; }
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: 42px;
+      border: 1px solid rgba(23, 100, 255, .15);
+      border-radius: 28px;
+      color: white;
+      background: linear-gradient(135deg, #071d50, #103ea8 58%, #1764ff);
+      box-shadow: 0 30px 70px rgba(15, 67, 187, .2);
+    }
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -100px;
+      bottom: -180px;
+      width: 460px;
+      height: 460px;
+      border: 80px solid rgba(255,255,255,.07);
+      border-radius: 50%;
+    }
+    .eyebrow {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      padding: 6px 10px;
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 999px;
+      background: rgba(255,255,255,.1);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+    }
+    h1 { position: relative; z-index: 1; max-width: 760px; margin: 18px 0 12px; font-size: clamp(34px, 5vw, 58px); line-height: 1.04; letter-spacing: -.045em; }
+    .hero > p { position: relative; z-index: 1; max-width: 770px; margin: 0; color: #dce8ff; font-size: 17px; }
+    .hero-meta { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
+    .hero-meta span { padding: 8px 11px; border-radius: 9px; background: rgba(255,255,255,.11); font-size: 12px; }
+
+    section { scroll-margin-top: 26px; margin-top: 62px; }
+    .section-head { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
+    .kicker { margin: 0 0 5px; color: var(--blue); font-size: 11px; font-weight: 850; letter-spacing: .14em; text-transform: uppercase; }
+    h2 { margin: 0; font-size: clamp(25px, 3vw, 34px); line-height: 1.18; letter-spacing: -.025em; }
+    h3 { margin: 0 0 8px; font-size: 17px; line-height: 1.35; }
+    h4 { margin: 0 0 6px; font-size: 14px; }
+    p { margin-top: 0; }
+    .lead { max-width: 760px; margin: 8px 0 0; color: var(--muted); }
+
+    .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 22px; }
+    .metric { padding: 21px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); }
+    .metric strong { display: block; color: var(--blue); font-size: 30px; line-height: 1; letter-spacing: -.04em; }
+    .metric span { display: block; margin-top: 8px; color: var(--muted); font-size: 12px; }
+
+    .card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+    .card { padding: 24px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
+    .card p:last-child { margin-bottom: 0; }
+    .card-number { display: grid; width: 34px; height: 34px; margin-bottom: 15px; place-items: center; border-radius: 10px; color: var(--blue); background: var(--blue-soft); font-size: 12px; font-weight: 900; }
+    .card ul, .panel ul { margin: 12px 0 0; padding-left: 18px; color: var(--muted); }
+    li + li { margin-top: 6px; }
+
+    .problem { border-left: 4px solid var(--red); }
+    .solution { border-left: 4px solid var(--green); }
+    .problem-label, .solution-label {
+      display: inline-flex;
+      margin-bottom: 10px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 850;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .problem-label { color: var(--red); background: var(--red-soft); }
+    .solution-label { color: var(--green); background: var(--green-soft); }
+
+    .flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+    .flow-step { position: relative; padding: 18px 14px; border: 1px solid #cbdaf5; border-radius: 14px; background: #fff; text-align: center; }
+    .flow-step:not(:last-child)::after { content: "→"; position: absolute; z-index: 2; top: 50%; right: -17px; color: var(--blue); font-weight: 900; transform: translateY(-50%); }
+    .flow-step b { display: block; color: var(--blue); font-size: 12px; }
+    .flow-step small { display: block; margin-top: 6px; color: var(--muted); line-height: 1.35; }
+
+    .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .panel { padding: 26px; border: 1px solid var(--line); border-radius: var(--radius); background: white; }
+    .panel.before { background: linear-gradient(145deg, #fff, #fff7f7); }
+    .panel.after { background: linear-gradient(145deg, #fff, #f1f7ff); border-color: #bfd2f5; }
+    .panel-title { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 5px var(--red-soft); }
+    .after .dot { background: var(--green); box-shadow: 0 0 0 5px var(--green-soft); }
+
+    .timeline { position: relative; margin-left: 10px; padding-left: 32px; }
+    .timeline::before { content: ""; position: absolute; top: 8px; bottom: 8px; left: 8px; width: 2px; background: #cbdaf5; }
+    .event { position: relative; padding: 0 0 30px; }
+    .event:last-child { padding-bottom: 0; }
+    .event::before { content: ""; position: absolute; top: 7px; left: -31px; width: 12px; height: 12px; border: 3px solid white; border-radius: 50%; background: var(--blue); box-shadow: 0 0 0 2px #9fbcf0; }
+    .event time { color: var(--blue); font-size: 11px; font-weight: 800; text-transform: uppercase; }
+    .event p { margin: 5px 0 0; color: var(--muted); }
+
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: white; box-shadow: var(--shadow); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 15px 17px; border-bottom: 1px solid #edf1f7; text-align: left; vertical-align: top; }
+    th { color: #526078; background: #f8faff; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+    tr:last-child td { border-bottom: 0; }
+    td:first-child { color: var(--blue-dark); font-weight: 750; white-space: nowrap; }
+
+    .code-block { overflow-x: auto; margin: 16px 0 0; padding: 18px; border-radius: 14px; color: #dbe8ff; background: #0a1733; font-size: 12px; line-height: 1.7; }
+    .callout { display: flex; gap: 14px; margin-top: 18px; padding: 18px; border: 1px solid #f0d79d; border-radius: 14px; color: #6f4600; background: var(--amber-soft); }
+    .callout strong { display: block; margin-bottom: 3px; }
+    .callout-icon { display: grid; width: 30px; height: 30px; flex: 0 0 auto; place-items: center; border-radius: 9px; color: white; background: #e69500; font-weight: 900; }
+    .checklist { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .check { display: flex; gap: 12px; padding: 16px; border: 1px solid #cce9de; border-radius: 14px; background: #f4fcf8; }
+    .check-mark { color: var(--green); font-weight: 900; }
+    .check b { display: block; font-size: 13px; }
+    .check small { color: var(--muted); }
+
+    .file-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .file { padding: 15px; border: 1px solid var(--line); border-radius: 13px; background: white; }
+    .file code { display: block; overflow-wrap: anywhere; font-size: 11px; font-weight: 750; }
+    .file span { display: block; margin-top: 7px; color: var(--muted); font-size: 11px; }
+
+    footer { margin-top: 70px; padding-top: 24px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+    .print-button { padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; color: var(--blue-dark); background: white; cursor: pointer; font: inherit; font-size: 12px; font-weight: 750; }
+    .print-button:hover { border-color: #a9c1ed; background: var(--blue-soft); }
+
+    @media (max-width: 980px) {
+      .shell { display: block; }
+      .sidebar { position: static; width: 100%; height: auto; padding: 18px 22px; border-right: 0; border-bottom: 1px solid var(--line); }
+      .brand { margin-bottom: 14px; }
+      .nav-title, .sidebar-note { display: none; }
+      nav { display: flex; gap: 4px; overflow-x: auto; }
+      nav a { flex: 0 0 auto; }
+      main { padding: 32px 22px 64px; }
+      .metrics, .checklist, .file-list { grid-template-columns: repeat(2, 1fr); }
+      .flow { grid-template-columns: 1fr; }
+      .flow-step:not(:last-child)::after { content: "↓"; top: auto; right: 50%; bottom: -20px; transform: translateX(50%); }
+    }
+    @media (max-width: 660px) {
+      .hero { padding: 28px 22px; }
+      .card-grid, .compare, .metrics, .checklist, .file-list { grid-template-columns: 1fr; }
+      main { padding-inline: 16px; }
+      .section-head { display: block; }
+      .print-button { margin-top: 14px; }
+      th, td { padding: 12px; }
+    }
+    @media print {
+      body { background: white; font-size: 11px; }
+      .shell { display: block; }
+      .sidebar, .print-button { display: none; }
+      main { max-width: none; padding: 0; }
+      .hero { color: white !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      section { margin-top: 32px; break-inside: avoid; }
+      .card, .panel, .metric, .table-wrap { box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">R</div>
+        <div><strong>Ruinion AI</strong><span>Rapport technique</span></div>
+      </div>
+      <div class="nav-title">Sommaire</div>
+      <nav aria-label="Sommaire du rapport">
+        <a href="#synthese"><span>01</span>Synthèse</a>
+        <a href="#problemes"><span>02</span>Problèmes résolus</a>
+        <a href="#architecture"><span>03</span>Architecture</a>
+        <a href="#fonctionnalites"><span>04</span>Fonctionnalités</a>
+        <a href="#pipeline"><span>05</span>Pipeline IA</a>
+        <a href="#historique"><span>06</span>Historique</a>
+        <a href="#donnees"><span>07</span>Données</a>
+        <a href="#validation"><span>08</span>Validation</a>
+        <a href="#fichiers"><span>09</span>Fichiers</a>
+        <a href="#limites"><span>10</span>Limites</a>
+      </nav>
+      <div class="sidebar-note">
+        Comparaison avec le dernier commit poussé : <strong>60a6daf</strong><br>
+        « maj audio et organisation »
+      </div>
+    </aside>
+
+    <main>
+      <header class="hero">
+        <div class="eyebrow">Compte rendu de développement · 29 septembre 2026</div>
+        <h1>De l’enregistrement au compte rendu, un parcours désormais durable</h1>
+        <p>Ce document décrit les changements réalisés depuis le dernier push, les incidents rencontrés et les choix techniques mis en place pour fiabiliser les invitations, la transcription, la génération IA, le document Word et l’historique.</p>
+        <div class="hero-meta">
+          <span>Base : 60a6daf</span>
+          <span>38 fichiers concernés</span>
+          <span>35 tests backend validés</span>
+          <span>Backend Docker actif</span>
+        </div>
+      </header>
+
+      <section id="synthese">
+        <div class="section-head">
+          <div><p class="kicker">01 · Synthèse</p><h2>Ce qui a changé</h2><p class="lead">Le traitement d’une réunion est passé d’un appel HTTP long et piloté par un agent à une suite d’étapes persistantes, observables et relançables. L’interface permet maintenant d’inviter les membres de l’équipe et de consulter l’audio avec sa transcription horodatée.</p></div>
+          <button class="print-button" type="button" onclick="window.print()">Imprimer / PDF</button>
+        </div>
+        <div class="metrics">
+          <div class="metric"><strong>17</strong><span>fichiers suivis modifiés</span></div>
+          <div class="metric"><strong>19</strong><span>nouveaux fichiers dans le travail en cours</span></div>
+          <div class="metric"><strong>2</strong><span>anciens tests remplacés</span></div>
+          <div class="metric"><strong>14</strong><span>modèles OpenRouter en fallback</span></div>
+        </div>
+        <div class="card-grid" style="margin-top:18px">
+          <article class="card"><div class="card-number">A</div><h3>Réunions liées à l’équipe</h3><p>Les participants en texte libre ont été remplacés dans le parcours principal par une sélection de membres actifs de l’organisation. Chaque membre reçoit une notification interne liée à la réunion.</p></article>
+          <article class="card"><div class="card-number">B</div><h3>Traitement en arrière-plan</h3><p>La route démarre une tâche persistante et répond immédiatement en HTTP 202. Un worker exécute ensuite la préparation audio, la transcription, la rédaction et le Word.</p></article>
+          <article class="card"><div class="card-number">C</div><h3>Historique exploitable</h3><p>La page historique présente une liste filtrable puis un détail avec transcription à gauche, audio à droite, recherche, navigation temporelle, résumé et compte rendu.</p></article>
+          <article class="card"><div class="card-number">D</div><h3>Génération contrôlée</h3><p>Le modèle retourne uniquement des données JSON validées. Le serveur sauvegarde le texte avant de créer le Word et essaie les modèles OpenRouter dans l’ordre configuré.</p></article>
+        </div>
+      </section>
+
+      <section id="problemes">
+        <div class="section-head"><div><p class="kicker">02 · Problèmes et solutions</p><h2>Les incidents qui ont guidé la refonte</h2></div></div>
+        <div class="card-grid">
+          <article class="card problem">
+            <span class="problem-label">Problème</span><h3>Code généré invalide</h3>
+            <p>L’ancien <code>CodeAgent</code> pouvait intégrer la transcription dans une chaîne Python et produire une erreur telle que <code>unterminated string literal</code>. La génération dépendait aussi du bon appel de <code>BuildWord</code> par l’agent.</p>
+            <span class="solution-label">Solution</span><p>Appel direct au modèle avec un schéma Pydantic strict. Aucun code généré n’est exécuté. Le serveur appelle lui-même <code>BuildWord</code> après validation.</p>
+          </article>
+          <article class="card problem">
+            <span class="problem-label">Problème</span><h3>Requête web trop longue</h3>
+            <p>Transcription, rédaction et Word étaient exécutés dans la requête HTTP. Le navigateur attendait plusieurs minutes et une actualisation pouvait perdre le suivi.</p>
+            <span class="solution-label">Solution</span><p>File persistante dans PostgreSQL, worker FastAPI, statuts d’étape et polling côté Vue. La page peut être fermée pendant le traitement.</p>
+          </article>
+          <article class="card problem">
+            <span class="problem-label">Problème</span><h3>Résultats perdus après un échec Word</h3>
+            <p>Un problème pendant la création du document pouvait rendre indisponible un résumé pourtant déjà produit.</p>
+            <span class="solution-label">Solution</span><p>Le résumé court et le compte rendu sont enregistrés dans une transaction avant l’étape Word. Une relance reprend uniquement les étapes manquantes.</p>
+          </article>
+          <article class="card problem">
+            <span class="problem-label">Problème</span><h3>Modèles lents, limités ou interdits</h3>
+            <p>Les essais ont révélé des délais dépassés, des réponses <code>429</code> et un accès <code>403</code> à certains modèles. Docker n’utilisait pas toujours les valeurs attendues.</p>
+            <span class="solution-label">Solution</span><p><code>SUMMARY_MODEL_IDS</code> dans le <code>.env</code> racine définit la liste ordonnée. Chaque modèle dispose de 30 secondes et le fallback continue avec le suivant.</p>
+          </article>
+          <article class="card problem">
+            <span class="problem-label">Problème</span><h3>Historique sans audio navigable</h3>
+            <p>L’application conservait surtout le texte final. Les anciens écrans ne permettaient pas de rapprocher une phrase du moment correspondant dans l’enregistrement.</p>
+            <span class="solution-label">Solution</span><p>L’audio normalisé, sa durée et les segments horodatés sont conservés. Un clic sur un horodatage déplace le lecteur au passage concerné.</p>
+          </article>
+          <article class="card problem">
+            <span class="problem-label">Problème</span><h3>Participants sans invitation réelle</h3>
+            <p>Le champ participant était un simple texte. Il ne garantissait ni l’appartenance à l’organisation, ni la notification du membre.</p>
+            <span class="solution-label">Solution</span><p>Sélecteur paginé des membres actifs, table de liaison, validation organisationnelle et notification interne idempotente. Aucun e-mail n’est envoyé.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="architecture">
+        <div class="section-head"><div><p class="kicker">03 · Architecture</p><h2>Avant et après</h2></div></div>
+        <div class="compare">
+          <div class="panel before">
+            <div class="panel-title"><span class="dot"></span><h3>Ancien parcours</h3></div>
+            <ul>
+              <li>La route <code>/summary</code> pilotait toute la génération.</li>
+              <li>Un agent décidait de ses étapes et exécutait des outils.</li>
+              <li>Le client gardait une connexion HTTP longue.</li>
+              <li>Les erreurs étaient difficiles à rattacher à une étape.</li>
+              <li>Les relances pouvaient recommencer inutilement le travail.</li>
+            </ul>
+          </div>
+          <div class="panel after">
+            <div class="panel-title"><span class="dot"></span><h3>Nouveau parcours</h3></div>
+            <ul>
+              <li>La route place la réunion dans l’état <code>queued</code>.</li>
+              <li>Le worker réserve atomiquement une réunion.</li>
+              <li>Chaque étape s’exécute dans un processus isolé.</li>
+              <li>Les sorties sont validées puis enregistrées étape par étape.</li>
+              <li>Une relance reprend à la première donnée manquante.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="flow" style="margin-top:18px">
+          <div class="flow-step"><b>Préparation</b><small>Assemblage et normalisation MP3</small></div>
+          <div class="flow-step"><b>Transcription</b><small>Voxtral + segments temporels</small></div>
+          <div class="flow-step"><b>Rédaction</b><small>JSON validé + fallback</small></div>
+          <div class="flow-step"><b>Sauvegarde</b><small>Résumé et compte rendu</small></div>
+          <div class="flow-step"><b>Document</b><small>Création du Word</small></div>
+        </div>
+      </section>
+
+      <section id="fonctionnalites">
+        <div class="section-head"><div><p class="kicker">04 · Fonctionnalités</p><h2>Détail des apports</h2></div></div>
+        <div class="timeline">
+          <article class="event"><time>Équipe et invitations</time><h3>Sélectionner de vrais membres</h3><p>L’endpoint <code>GET /meetings/invitees</code> recherche et pagine les membres actifs de l’organisation, exclut l’utilisateur courant et empêche les invitations externes ou inactives. La création est transactionnelle : réunion, participants et notifications sont validés ensemble.</p></article>
+          <article class="event"><time>Notifications internes</time><h3>Informer chaque invité dans l’application</h3><p>Une notification <code>meeting_invitation</code> est créée une seule fois par utilisateur et réunion. Sa visibilité, sa lecture individuelle et « tout marquer comme lu » respectent l’utilisateur destinataire et l’organisation.</p></article>
+          <article class="event"><time>Audio</time><h3>Conserver une source rejouable</h3><p>Les fichiers importés ou enregistrés sont stockés dans leur ordre, normalisés par FFmpeg et conservés sous <code>AUDIO_DIR</code>. Les formats MP3, WAV, WebM, MP4/M4A, OGG, FLAC et AAC sont pris en charge.</p></article>
+          <article class="event"><time>Transcription</time><h3>Associer le texte au temps</h3><p><code>voxtral-mini-latest</code> retourne le texte et des segments valides triés par début. La langue n’est pas forcée car l’API Mistral rend ce paramètre incompatible avec les horodatages.</p></article>
+          <article class="event"><time>Compte rendu</time><h3>Produire six sections fiables</h3><p>Le schéma impose un résumé court, un résumé long, les points importants, les décisions, les actions avec responsable et échéance, les questions ouvertes et les risques. Les champs supplémentaires ou vides sont rejetés.</p></article>
+          <article class="event"><time>Historique</time><h3>Retrouver et exploiter une réunion</h3><p>Recherche globale, filtres par état, tri, cartes de réunion et détail responsive. Les onglets Transcription, Résumé et Compte rendu partagent la zone gauche ; le lecteur et les participants occupent la zone droite.</p></article>
+        </div>
+      </section>
+
+      <section id="pipeline">
+        <div class="section-head"><div><p class="kicker">05 · Pipeline IA</p><h2>Génération, fallback et reprise</h2><p class="lead">Le modèle rédige le contenu. L’application garde la maîtrise du flux, de la validation, de la persistance et du document.</p></div></div>
+        <div class="card-grid">
+          <article class="card"><h3>Réponse structurée</h3><p>Le prompt demande uniquement du JSON. Les modèles compatibles reçoivent <code>response_format</code>. Pour les endpoints gratuits qui ne l’acceptent pas, le JSON est demandé dans le texte puis validé localement.</p></article>
+          <article class="card"><h3>Liste centralisée</h3><p><code>SUMMARY_MODEL_IDS</code> contient la liste séparée par des virgules. Les noms sont normalisés, les doublons supprimés et tous les modèles restants sont essayés dans l’ordre.</p></article>
+          <article class="card"><h3>Délais maîtrisés</h3><p>LiteLLM attend au maximum 25 secondes. Le processus parent accorde 30 secondes par modèle, le termine proprement au-delà et poursuit le fallback.</p></article>
+          <article class="card"><h3>Réservation durable</h3><p>Un jeton de traitement protège chaque écriture. Un ancien worker ne peut pas écraser une nouvelle relance. Une réservation expirée devient un échec explicite et relançable.</p></article>
+        </div>
+        <pre class="code-block">queued → preparing → transcribing → writing → building → completed
+   │          │              │           │          │
+   │          │              │           │          └─ BuildWord
+   │          │              │           └─ modèles OpenRouter dans l’ordre
+   │          │              └─ Voxtral + timestamps
+   │          └─ FFmpeg + durée
+   └─ réponse HTTP 202 immédiate
+
+En cas d’erreur : failed → relance → reprise à la première étape manquante</pre>
+        <div class="callout"><div class="callout-icon">!</div><div><strong>Durée maximale théorique actuelle</strong>14 modèles × 30 secondes + 30 secondes de marge = 450 secondes, soit 7 min 30 si aucun modèle ne répond. Le premier succès arrête immédiatement la boucle.</div></div>
+      </section>
+
+      <section id="historique">
+        <div class="section-head"><div><p class="kicker">06 · Interface historique</p><h2>Une lecture synchronisée, inspirée de tl;dv</h2></div></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Zone</th><th>Fonctionnement</th><th>Intérêt utilisateur</th></tr></thead>
+            <tbody>
+              <tr><td>Liste</td><td>Recherche dans le titre, les participants, la transcription et les résumés ; filtres terminées, en cours et à relancer.</td><td>Retrouver rapidement une réunion.</td></tr>
+              <tr><td>Transcription</td><td>Segments horodatés, recherche locale et surbrillance du passage actif.</td><td>Passer du texte à l’audio en un clic.</td></tr>
+              <tr><td>Audio</td><td>Lecture native, ±15 secondes, vitesse 0,75× à 2× et téléchargement.</td><td>Réécouter efficacement sans quitter la page.</td></tr>
+              <tr><td>Suivi</td><td>Défilement automatique optionnel selon le temps courant du lecteur.</td><td>Lire la transcription au rythme de l’enregistrement.</td></tr>
+              <tr><td>Résultats</td><td>Onglets résumé et compte rendu, copie dans le presse-papiers et téléchargement Word.</td><td>Exploiter et partager les livrables.</td></tr>
+              <tr><td>États</td><td>En attente, préparation, transcription, rédaction, Word, terminé ou à relancer.</td><td>Comprendre ce que fait le serveur.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="donnees">
+        <div class="section-head"><div><p class="kicker">07 · Données et API</p><h2>Persistance ajoutée</h2></div></div>
+        <div class="card-grid">
+          <article class="card"><h3>Migration des invitations</h3><p><code>d27f6b8a910c</code> crée <code>meeting_participants</code>, relie les notifications aux réunions et ajoute les contraintes d’unicité nécessaires à l’idempotence.</p></article>
+          <article class="card"><h3>Migration du traitement</h3><p><code>e31a62b904fc</code> ajoute le manifeste audio, le chemin, la durée, les segments, le statut, l’erreur, le jeton et l’expiration de réservation.</p></article>
+          <article class="card"><h3>Isolation par organisation</h3><p>La lecture de la réunion, de l’audio, du Word, des invités et des notifications vérifie l’organisation et l’utilisateur courant. Les chemins sont confinés aux répertoires privés configurés.</p></article>
+          <article class="card"><h3>Compatibilité historique</h3><p>Les anciennes réunions et leurs participants textuels restent lisibles. L’interface indique honnêtement lorsqu’un ancien audio n’a jamais été conservé.</p></article>
+        </div>
+        <div class="table-wrap" style="margin-top:18px">
+          <table>
+            <thead><tr><th>Endpoint</th><th>Rôle</th><th>Comportement principal</th></tr></thead>
+            <tbody>
+              <tr><td>POST /meetings/</td><td>Créer et inviter</td><td>Valide les membres et crée les notifications dans la même transaction.</td></tr>
+              <tr><td>GET /meetings/invitees</td><td>Annuaire</td><td>Recherche paginée des membres invitables.</td></tr>
+              <tr><td>POST /meetings/{id}/audio</td><td>Déposer l’audio</td><td>Stocke les segments et met la réunion en file ; réponse 202.</td></tr>
+              <tr><td>POST /meetings/{id}/summary</td><td>Lancer ou relancer</td><td>Évite les doublons et reprend les étapes manquantes.</td></tr>
+              <tr><td>GET /meetings/{id}</td><td>Suivre</td><td>Retourne statut, erreurs et résultats pour le polling.</td></tr>
+              <tr><td>GET /meetings/{id}/audio</td><td>Lire l’audio</td><td>Accès authentifié, cache privé et requêtes partielles.</td></tr>
+              <tr><td>GET /meetings/{id}/report</td><td>Télécharger</td><td>Retourne le Word seulement si son chemin est valide.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="validation">
+        <div class="section-head"><div><p class="kicker">08 · Validation</p><h2>Contrôles réalisés</h2></div></div>
+        <div class="checklist">
+          <div class="check"><span class="check-mark">✓</span><div><b>35 tests backend</b><small>Suite complète validée dans la nouvelle image Docker.</small></div></div>
+          <div class="check"><span class="check-mark">✓</span><div><b>Pipeline complet</b><small>Préparation, transcription, rédaction, sauvegarde et Word.</small></div></div>
+          <div class="check"><span class="check-mark">✓</span><div><b>Fallback</b><small>Passage au modèle suivant après erreur ou délai.</small></div></div>
+          <div class="check"><span class="check-mark">✓</span><div><b>Concurrence</b><small>Une seule réservation atomique et rejet des écritures tardives.</small></div></div>
+          <div class="check"><span class="check-mark">✓</span><div><b>Invitations</b><small>Validation des membres, unicité et visibilité destinataire.</small></div></div>
+          <div class="check"><span class="check-mark">✓</span><div><b>Sécurité audio</b><small>Formats, tailles, organisation et confinement des chemins.</small></div></div>
+          <div class="check"><span class="check-mark">✓</span><div><b>Backend actif</b><small>Image reconstruite, service recréé, endpoint health OK.</small></div></div>
+          <div class="check"><span class="check-mark">✓</span><div><b>Configuration active</b><small>14 modèles chargés, 30 secondes par tentative.</small></div></div>
+          <div class="check"><span class="check-mark">✓</span><div><b>Syntaxe et diff</b><small>Compilation Python et contrôle Git sans erreur de whitespace.</small></div></div>
+        </div>
+      </section>
+
+      <section id="fichiers">
+        <div class="section-head"><div><p class="kicker">09 · Cartographie</p><h2>Principaux fichiers concernés</h2></div></div>
+        <div class="file-list">
+          <div class="file"><code>meeting_processing.py</code><span>File persistante, étapes, délais, réservation et fallback.</span></div>
+          <div class="file"><code>meeting_content.py</code><span>Schéma JSON, sélection des modèles et appel LiteLLM.</span></div>
+          <div class="file"><code>processing_task.py</code><span>Exécution isolée des quatre étapes et erreurs sûres.</span></div>
+          <div class="file"><code>transcription_service.py</code><span>Voxtral et segments horodatés.</span></div>
+          <div class="file"><code>meeting_storage.py</code><span>Stockage et confinement des fichiers audio.</span></div>
+          <div class="file"><code>routes/meetings.py</code><span>Création, invités, audio, lancement et téléchargements.</span></div>
+          <div class="file"><code>models.py / schema.py</code><span>Persistance et contrats API enrichis.</span></div>
+          <div class="file"><code>notification_service.py</code><span>Notifications de réunion ciblées et idempotentes.</span></div>
+          <div class="file"><code>main.py</code><span>Démarrage et arrêt du worker avec FastAPI.</span></div>
+          <div class="file"><code>MeetingInvitees.vue</code><span>Sélecteur des membres avec recherche et pagination.</span></div>
+          <div class="file"><code>MeetingDetail.vue</code><span>Transcription, lecteur, participants et résultats.</span></div>
+          <div class="file"><code>Historique.vue</code><span>Liste filtrable et ouverture d’une réunion.</span></div>
+          <div class="file"><code>useMeeting.js</code><span>Polling, actualisation et relance contrôlée.</span></div>
+          <div class="file"><code>service/api.js</code><span>Nouveaux appels réunions, audio, invités et Word.</span></div>
+          <div class="file"><code>docker-compose.yml</code><span>Variables IA, modèle audio et volumes de stockage.</span></div>
+        </div>
+      </section>
+
+      <section id="limites">
+        <div class="section-head"><div><p class="kicker">10 · Limites et exploitation</p><h2>Points à garder en tête</h2></div></div>
+        <div class="card-grid">
+          <article class="card"><h3>Quotas OpenRouter</h3><p>Les modèles configurés sont gratuits et partagent la même clé. Un quota global atteint peut provoquer un <code>429</code> sur toute la liste. Ajouter des modèles augmente la résilience aux pannes propres à un modèle, pas le quota du compte.</p></article>
+          <article class="card"><h3>Liste évolutive</h3><p>Les modèles gratuits peuvent apparaître, changer ou disparaître. La variable <code>SUMMARY_MODEL_IDS</code> doit être revue périodiquement à partir du catalogue OpenRouter.</p></article>
+          <article class="card"><h3>Stockage local</h3><p>Les audios et rapports résident dans le volume <code>storage</code>. Une suppression de ce volume retire les fichiers même si les métadonnées restent en base.</p></article>
+          <article class="card"><h3>Travail non poussé</h3><p>Ce rapport décrit l’arbre de travail actuel comparé au commit <code>60a6daf</code>. Les changements doivent encore être revus puis commités et poussés pour devenir une référence Git durable.</p></article>
+        </div>
+        <div class="callout"><div class="callout-icon">i</div><div><strong>Décision de conception principale</strong>L’IA reste responsable de la rédaction. Le serveur reste responsable de l’ordre des étapes, des fichiers, de la validation, de la base de données, des relances et du document Word.</div></div>
+      </section>
+
+      <footer>
+        <strong>Ruinion AI — Rapport des modifications depuis le dernier push</strong><br>
+        Base Git : <code>60a6daf92b8bf8c1f0d513c8d501917bbf0627e0</code> · Généré le 29 septembre 2026 · Document autonome sans dépendance externe.
+      </footer>
+    </main>
+  </div>
+
+  <script>
+    const links = [...document.querySelectorAll('nav a')]
+    const sections = links.map(link => document.querySelector(link.getAttribute('href'))).filter(Boolean)
+    const observer = new IntersectionObserver(entries => {
+      const visible = entries.filter(entry => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0]
+      if (!visible) return
+      links.forEach(link => link.classList.toggle('active', link.getAttribute('href') === `#${visible.target.id}`))
+    }, { rootMargin: '-15% 0px -70%', threshold: [0, .2, .6] })
+    sections.forEach(section => observer.observe(section))
+  </script>
+</body>
+</html>

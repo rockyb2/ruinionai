@@ -25,6 +25,7 @@ services:
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is not set in .env file}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       OPENROUTER_MODEL_ID: ${OPENROUTER_MODEL_ID:-openrouter/nvidia/nemotron-3.5-lightning:free}
+      SUMMARY_MODEL_IDS: ${SUMMARY_MODEL_IDS:-}
       NEX_AGI_MODEL_ID: ${NEX_AGI_MODEL_ID:-openrouter/nex-agi/nex-n2.5-mini:free}
       NEX_AGI_MODEL_ID2: ${NEX_AGI_MODEL_ID2:-openrouter/nex-agi/nex-n2.5-pro:free}
       MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
@@ -33,8 +34,10 @@ services:
       MISTRAL_MODEL_ID3: ${MISTRAL_MODEL_ID3:-}
       ZAI_API_KEY: ${ZAI_API_KEY:-}
       ZAI_MODEL: ${ZAI_MODEL:-}
-      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:?ELEVENLABS_API_KEY is not set in .env file}
+      MISTRAL_AUDIO_MODEL: ${MISTRAL_AUDIO_MODEL:-voxtral-mini-latest}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
       REPORTS_DIR: /app/storage/reports
+      AUDIO_DIR: /app/storage/audio
 
     restart: unless-stopped
 

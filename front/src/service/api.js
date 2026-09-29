@@ -211,6 +211,11 @@ export async function createMeeting(data) {
   )
 }
 
+export async function listMeetingInvitees({ q = '', offset = 0, limit = 50 } = {}) {
+  const query = new URLSearchParams({ q, offset: String(offset), limit: String(limit) })
+  return apiRequest(`/meetings/invitees?${query}`, {}, 'Impossible de charger les membres de l’équipe.')
+}
+
 export async function uploadAudio(meetingId, audio) {
   const formData = new FormData()
   if (Array.isArray(audio)) {
@@ -274,8 +279,16 @@ export async function downloadMeetingReport(meetingId) {
   window.URL.revokeObjectURL(url)
 }
 
-export async function getMeeting(meetingId) {
-  return apiRequest(`/meetings/${meetingId}`, {}, 'Reunion introuvable.')
+export async function getMeeting(meetingId, options = {}) {
+  return apiRequest(`/meetings/${meetingId}`, options, 'Réunion introuvable.')
+}
+
+export async function getMeetingAudio(meetingId, signal) {
+  const response = await fetch(`${API_URL}/meetings/${meetingId}/audio`, {
+    signal, headers: { ...getOrganizationHeaders(), Authorization: `Bearer ${getAuthToken()}` },
+  })
+  if (!response.ok) await requestJson(response, 'Impossible de charger l’enregistrement.')
+  return response.blob()
 }
 
 

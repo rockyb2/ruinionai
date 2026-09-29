@@ -3,7 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response
 from sqlalchemy.orm import Session
 
-from auth.dependencies import AuthContext, require_organization_admin
+from auth.dependencies import AuthContext, get_auth_context, require_organization_admin
 from database import get_db
 from models import OrganizationNotification
 from notification_service import (
@@ -21,6 +21,18 @@ router = APIRouter(
     prefix="/organization/notifications",
     tags=["organization"],
 )
+
+
+def notifications_for_user(db: Session, auth: AuthContext):
+    return visible_notifications_query(
+        db,
+        organization_id=auth.membership.organization_id,
+        user_id=auth.user.id,
+        include_organization_invitations=(
+            auth.membership.role in ("owner", "admin")
+            and auth.membership.organization.invitation_notifications_enabled
+        ),
+    )
 
 
 @router.post("/sync", response_model=NotificationSyncRead)
@@ -48,24 +60,9 @@ def list_notifications(
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_organization_admin),
+    auth: AuthContext = Depends(get_auth_context),
 ):
-    organization = auth.membership.organization
-    if not organization.invitation_notifications_enabled:
-        response.headers["Cache-Control"] = "no-store"
-        return {
-            "items": [],
-            "total": 0,
-            "unread_count": 0,
-            "offset": offset,
-            "limit": limit,
-        }
-
-    query = visible_notifications_query(
-        db,
-        organization_id=organization.id,
-        user_id=auth.user.id,
-    )
+    query = notifications_for_user(db, auth)
     unread_count = query.filter(
         OrganizationNotification.read_at.is_(None)
     ).count()
@@ -97,15 +94,12 @@ def mark_notification_read(
     response: Response,
     notification_id: int = Path(gt=0),
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_organization_admin),
+    auth: AuthContext = Depends(get_auth_context),
 ):
     notification = (
-        db.query(OrganizationNotification)
+        notifications_for_user(db, auth)
         .filter(
             OrganizationNotification.id == notification_id,
-            OrganizationNotification.organization_id
-            == auth.membership.organization_id,
-            OrganizationNotification.user_id == auth.user.id,
         )
         .first()
     )
@@ -124,13 +118,9 @@ def mark_notification_read(
 @router.post("/read-all", status_code=204)
 def mark_all_notifications_read(
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_organization_admin),
+    auth: AuthContext = Depends(get_auth_context),
 ):
-    query = visible_notifications_query(
-        db,
-        organization_id=auth.membership.organization_id,
-        user_id=auth.user.id,
-    ).filter(OrganizationNotification.read_at.is_(None))
+    query = notifications_for_user(db, auth).filter(OrganizationNotification.read_at.is_(None))
     notification_ids = [item.id for item in query.all()]
     if notification_ids:
         db.query(OrganizationNotification).filter(

@@ -1,50 +1,22 @@
-import os
-import re
-import unicodedata
-from uuid import uuid4
 from pathlib import Path
-from time import sleep
-from tempfile import TemporaryDirectory
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 from fastapi.responses import FileResponse
 from starlette.concurrency import run_in_threadpool
-from sqlalchemy.orm import Session
+from sqlalchemy import func, or_, update
+from sqlalchemy.orm import Session, joinedload
 
 from auth.dependencies import AuthContext, get_auth_context
-from audio_processing import (
-    AudioValidationError,
-    MAX_AUDIO_BYTES,
-    MAX_AUDIO_SEGMENTS,
-    audio_input_format,
-    merge_audio_segments,
-)
+from audio_processing import AudioValidationError, MAX_AUDIO_BYTES, MAX_AUDIO_SEGMENTS, audio_input_format
 from database import get_db
-from models import Meeting
-from schema import MeetingCreate, MeetingRead
+from meeting_processing import ACTIVE
+from meeting_storage import audio_directory, resolve_audio
+from models import Meeting, MeetingParticipant, OrganizationMember, OrganizationNotification, User
+from schema import MeetingCreate, MeetingInviteesPage, MeetingRead
 from tools import get_reports_dir
-from transcrib2 import transcribe_audio
-
 
 router = APIRouter()
-
-MODELS = [
-    os.getenv("OPENROUTER_MODEL_ID") or os.getenv("OPENROUTER_MODEL"),
-    os.getenv("MISTRAL_MODEL_ID"),
-    os.getenv("MISTRAL_MODEL_ID2"),
-    os.getenv("MISTRAL_MODEL_ID3"),
-    os.getenv("NEX_AGI_MODEL_ID"),
-    os.getenv("NEX_AGI_MODEL_ID2"),
-]
-MODELS = [model for model in MODELS if model]
-
-
-def build_report_filename_stem(meeting_id: int, title: str) -> str:
-    normalized_title = unicodedata.normalize("NFKD", title or "")
-    ascii_title = normalized_title.encode("ascii", "ignore").decode("ascii")
-    slug = re.sub(r"[^a-zA-Z0-9_-]+", "-", ascii_title.strip().lower()).strip("-")
-    slug = slug[:60] or "compte-rendu"
-    return f"meeting-{meeting_id}-{slug}-{uuid4().hex[:8]}"
 
 
 def get_meeting_for_current_org(
@@ -64,68 +36,6 @@ def get_meeting_for_current_org(
         raise HTTPException(status_code=404, detail="Meeting not found")
 
     return db_meeting
-
-
-def run_with_model_fallback(prompt):
-    from agent import create_agent
-
-    if not MODELS:
-        raise RuntimeError(
-            "Aucun modele configure. Verifie MISTRAL_MODEL_ID, OPENROUTER_MODEL_ID, "
-            "NEX_AGI_MODEL_ID ou NEX_AGI_MODEL_ID2 dans l'environnement Docker."
-        )
-
-    last_error = None
-
-    for model_id in MODELS:
-        try:
-            agent = create_agent(model_id)
-            return agent.run(prompt)
-        except Exception as error:
-            last_error = error
-            print(f"Modele echoue : {model_id} -> {error}")
-
-    raise RuntimeError(f"Aucun modele disponible : {last_error}")
-
-
-def run_with_retries(action, operation_name: str, attempts: int = 3):
-    last_error = None
-
-    for attempt in range(1, attempts + 1):
-        try:
-            return action()
-        except Exception as exc:
-            last_error = exc
-            if attempt < attempts:
-                sleep(2 * attempt)
-
-    raise HTTPException(
-        status_code=502,
-        detail=f"{operation_name} a echoue apres {attempts} essais : {last_error}",
-    )
-
-
-def split_summary_output(output: str) -> tuple[str, str]:
-    output = str(output or "")
-
-    short_match = re.search(
-        r"RESUME_COURT\s*:\s*(.*?)(?:COMPTE_RENDU_DETAILLE\s*:|$)",
-        output,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-    long_match = re.search(
-        r"COMPTE_RENDU_DETAILLE\s*:\s*(.*?)(?:WORD_PATH\s*:|$)",
-        output,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-
-    summary_short = short_match.group(1).strip() if short_match else ""
-    summary_long = long_match.group(1).strip() if long_match else ""
-
-    if not summary_short and not summary_long:
-        return output.strip(), output.strip()
-
-    return summary_short or "Non precise", summary_long or output.strip()
 
 
 def resolve_report_path(report_path: str | None) -> Path:
@@ -160,16 +70,84 @@ def create_meeting(
     db: Session = Depends(get_db),
     auth_context: AuthContext = Depends(get_auth_context),
 ):
-    db_meeting = Meeting(
-        title=meeting.title,
-        organization_id=auth_context.membership.organization_id,
-        created_by_user_id=auth_context.user.id,
-        participants=",".join(meeting.participants) if meeting.participants else None,
-    )
-    db.add(db_meeting)
-    db.commit()
-    db.refresh(db_meeting)
+    organization_id = auth_context.membership.organization_id
+    try:
+        members = (
+            db.query(OrganizationMember)
+            .join(OrganizationMember.user)
+            .options(joinedload(OrganizationMember.user))
+            .filter(
+                OrganizationMember.id.in_(meeting.participant_member_ids),
+                OrganizationMember.organization_id == organization_id,
+                OrganizationMember.status == "active",
+                User.is_active.is_(True),
+            )
+            .all()
+        ) if meeting.participant_member_ids else []
+        by_id = {member.id: member for member in members}
+        if len(by_id) != len(meeting.participant_member_ids):
+            raise HTTPException(422, "Sélectionnez uniquement des membres actifs de votre équipe.")
+
+        invitees = [by_id[member_id] for member_id in meeting.participant_member_ids
+                    if member_id != auth_context.membership.id]
+        organizer_name = member_name(auth_context.user)
+        db_meeting = Meeting(
+            title=meeting.title,
+            organization_id=organization_id,
+            created_by_user_id=auth_context.user.id,
+            participants=", ".join([organizer_name, *[member_name(member.user) for member in invitees]]),
+            invited_members=[MeetingParticipant(member_id=member.id) for member in invitees],
+        )
+        db.add(db_meeting)
+        db.flush()
+        for member in invitees:
+            db.add(OrganizationNotification(
+                organization_id=organization_id,
+                user_id=member.user_id,
+                meeting_id=db_meeting.id,
+                kind="meeting_invitation",
+                title="Invitation à une réunion",
+                message=f'{organizer_name[:150]} vous invite à la réunion « {meeting.title} ».',
+            ))
+        db.commit()
+        db.refresh(db_meeting)
+    except Exception:
+        db.rollback()
+        raise
     return db_meeting
+
+
+def member_name(user: User) -> str:
+    return " ".join(part for part in (user.first_name, user.last_name) if part).strip() or user.email
+
+
+@router.get("/meetings/invitees", response_model=MeetingInviteesPage)
+def list_meeting_invitees(
+    response: Response,
+    q: str = Query(default="", max_length=100),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=100),
+    db: Session = Depends(get_db),
+    auth_context: AuthContext = Depends(get_auth_context),
+):
+    query = db.query(OrganizationMember).join(OrganizationMember.user).filter(
+        OrganizationMember.organization_id == auth_context.membership.organization_id,
+        OrganizationMember.status == "active",
+        OrganizationMember.user_id != auth_context.user.id,
+        User.is_active.is_(True),
+    )
+    if q.strip():
+        query = query.filter(or_(
+            (func.coalesce(User.first_name, "") + " " + func.coalesce(User.last_name, "")).icontains(q.strip(), autoescape=True),
+            User.email.icontains(q.strip(), autoescape=True),
+        ))
+    total = query.count()
+    members = query.options(joinedload(OrganizationMember.user)).order_by(OrganizationMember.id).offset(offset).limit(limit).all()
+    response.headers["Cache-Control"] = "no-store"
+    return {
+        "items": [{"member_id": member.id, "name": member_name(member.user), "email": member.user.email} for member in members],
+        "total": total, "offset": offset, "limit": limit,
+    }
 
 
 @router.get("/meetings/{meeting_id}", response_model=MeetingRead)
@@ -181,7 +159,7 @@ def read_meeting(
     return get_meeting_for_current_org(meeting_id, db, auth_context)
 
 
-@router.post("/meetings/{meeting_id}/audio", response_model=MeetingRead)
+@router.post("/meetings/{meeting_id}/audio", response_model=MeetingRead, status_code=202)
 async def upload_audio(
     meeting_id: int,
     file: UploadFile | None = File(None),
@@ -189,173 +167,103 @@ async def upload_audio(
     db: Session = Depends(get_db),
     auth_context: AuthContext = Depends(get_auth_context),
 ):
-    db_meeting = get_meeting_for_current_org(meeting_id, db, auth_context)
+    meeting = get_meeting_for_current_org(meeting_id, db, auth_context)
     if (file is None) == (not files):
-        raise HTTPException(status_code=400, detail="Envoyez un fichier audio ou les parties d’un enregistrement.")
+        raise HTTPException(400, "Envoyez un fichier audio ou les parties d’un enregistrement.")
     uploads = files if files else [file]
-    if len(uploads) > MAX_AUDIO_SEGMENTS:
-        raise HTTPException(status_code=400, detail="Un enregistrement ne peut pas dépasser 100 parties.")
-
+    directory = None
+    saved = False
     try:
-        with TemporaryDirectory(prefix="ruinion-audio-upload-") as temporary:
-            parts = []
-            total_bytes = 0
-            for index, upload in enumerate(uploads):
-                if files:
-                    audio_input_format(upload.content_type)
-                path = Path(temporary) / f"part-{index}"
-                size = 0
-                with path.open("wb") as target:
-                    while chunk := await upload.read(1024 * 1024):
-                        total_bytes += len(chunk)
-                        size += len(chunk)
-                        if total_bytes > MAX_AUDIO_BYTES:
-                            raise HTTPException(status_code=413, detail="La taille totale de l’audio dépasse 500 Mo.")
-                        await run_in_threadpool(target.write, chunk)
-                if not size:
-                    raise AudioValidationError("Une partie de l’audio est vide.")
-                parts.append((path, upload.content_type))
-
-            if files:
-                audio_bytes = await run_in_threadpool(merge_audio_segments, parts)
-                file_name, content_type = "note-vocale.mp3", "audio/mpeg"
-            else:
-                audio_bytes = await run_in_threadpool(parts[0][0].read_bytes)
-                file_name, content_type = file.filename, file.content_type
-    except AudioValidationError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        if len(uploads) > MAX_AUDIO_SEGMENTS:
+            raise HTTPException(400, "Un enregistrement ne peut pas dépasser 100 parties.")
+        # An HTTP retry reuses the persisted source and its existing task.
+        if meeting.has_source_audio:
+            return meeting
+        if meeting.transcription or meeting.processing_status in ACTIVE:
+            raise HTTPException(409, "Cette réunion possède déjà une transcription. Créez une nouvelle réunion pour un autre audio.")
+        directory = audio_directory() / f"org-{meeting.organization_id}" / f"meeting-{meeting.id}" / uuid4().hex
+        directory.mkdir(parents=True)
+        manifest, total_bytes = [], 0
+        for index, upload in enumerate(uploads):
+            content_type = (upload.content_type or "").split(";")[0].lower()
+            audio_input_format(content_type)
+            path = directory / f"part-{index}"
+            size = 0
+            with path.open("wb") as target:
+                while chunk := await upload.read(1024 * 1024):
+                    total_bytes += len(chunk)
+                    size += len(chunk)
+                    if total_bytes > MAX_AUDIO_BYTES:
+                        raise HTTPException(413, "La taille totale de l’audio dépasse 500 Mo.")
+                    await run_in_threadpool(target.write, chunk)
+            if not size:
+                raise AudioValidationError("Une partie de l’audio est vide.")
+            manifest.append({"path": str(path), "content_type": content_type})
+        # Atomic compare-and-set: concurrent uploads cannot replace an accepted source.
+        count = db.execute(update(Meeting).where(
+            Meeting.id == meeting.id, Meeting.audio_manifest.is_(None),
+            Meeting.transcription.is_(None), Meeting.processing_status.not_in(ACTIVE),
+        ).values(audio_manifest=manifest, processing_status="queued", processing_error=None)).rowcount
+        db.commit()
+        saved = count == 1
+        db.refresh(meeting)
+        return meeting
+    except AudioValidationError as error:
+        raise HTTPException(422, str(error)) from error
     finally:
         for upload in uploads:
             await upload.close()
-
-    transcription = await run_in_threadpool(
-        run_with_retries,
-        lambda: transcribe_audio(
-            audio_bytes=audio_bytes,
-            file_name=file_name,
-            content_type=content_type,
-            language="fr",
-        ),
-        "La transcription ElevenLabs",
-    )
-
-    db_meeting.transcription = transcription
-    db.commit()
-    db.refresh(db_meeting)
-    return db_meeting
+        if directory and not saved:
+            # Only this request's newly created, known directory is removed.
+            for part in directory.iterdir():
+                part.unlink()
+            directory.rmdir()
 
 
-@router.post("/meetings/{meeting_id}/summary", response_model=MeetingRead)
+@router.post("/meetings/{meeting_id}/summary", response_model=MeetingRead, status_code=202)
 def summarize_meeting(
+    meeting_id: int,
+    response: Response,
+    db: Session = Depends(get_db),
+    auth_context: AuthContext = Depends(get_auth_context),
+):
+    meeting = get_meeting_for_current_org(meeting_id, db, auth_context)
+    if meeting.processing_status in ACTIVE:
+        return meeting
+    if not meeting.transcription and not meeting.has_source_audio:
+        raise HTTPException(400, "Ajoutez un enregistrement avant de lancer la génération.")
+    if meeting.summary_short and meeting.summary_long and meeting.report_path:
+        try:
+            resolve_report_path(meeting.report_path)
+            response.status_code = 200
+            return meeting
+        except HTTPException:
+            pass  # The text is retained; recreate only the missing Word.
+    db.execute(update(Meeting).where(
+        Meeting.id == meeting.id, Meeting.processing_status == meeting.processing_status,
+        Meeting.updated_at == meeting.updated_at,
+    ).values(processing_status="queued", processing_error=None,
+             processing_token=None, processing_expires_at=None))
+    db.commit()
+    db.refresh(meeting)
+    return meeting
+
+
+@router.get("/meetings/{meeting_id}/audio")
+def read_meeting_audio(
     meeting_id: int,
     db: Session = Depends(get_db),
     auth_context: AuthContext = Depends(get_auth_context),
 ):
-    db_meeting = get_meeting_for_current_org(meeting_id, db, auth_context)
-
-    if not db_meeting.transcription:
-        raise HTTPException(
-            status_code=400,
-            detail="Transcription not available for this meeting",
-        )
-
-    transcription = db_meeting.transcription
-    report_filename = build_report_filename_stem(db_meeting.id, db_meeting.title)
-    expected_report_path = (get_reports_dir() / f"{report_filename}.docx").resolve()
-    organization_name = auth_context.membership.organization.name
-    participants = db_meeting.participants or "Non precise"
-    meeting_date = (db_meeting.created_at or db_meeting.date).strftime("%d/%m/%Y %H:%M")
-
-    prompt_summary = f"""
-    Tu es l'agent IA de Ruinion AI. Analyse cette reunion, redige en francais le
-    resume et le compte rendu, puis appelle obligatoirement l'outil BuildWord
-    pour creer le document Word final.
-
-    Appelle BuildWord avec template="meeting_report",
-    filename="{report_filename}" (sans extension .docx),
-    title="{db_meeting.title}", organization="{organization_name}",
-    date="{meeting_date}" et participants="{participants}".
-    Dans body, place le resume et le compte rendu sous les etiquettes exactes
-    RESUME_COURT: et COMPTE_RENDU_DETAILLE: avec les six sections ci-dessous.
-    L'outil BuildWord applique lui-meme la presentation professionnelle.
-
-    Parametres du compte rendu :
-    - Organisation : {organization_name}
-    - Titre de reunion : {db_meeting.title}
-    - Date : {meeting_date}
-    - Participants : {participants}
-
-    A partir de la transcription ci-dessous, produis :
-
-    RESUME_COURT:
-    - Un resume de 5 a 10 lignes
-    - Les decisions importantes si elles existent
-    - Les actions urgentes si elles existent
-
-    COMPTE_RENDU_DETAILLE:
-    1. Resume long
-    Une synthese objective des echanges.
-    2. Points importants
-    Les principaux sujets abordes, en quelques puces.
-    3. Decisions prises
-    Une decision par puce, ou "Non precise".
-    4. Actions a faire
-    Une action par ligne dans ce format exact :
-    - Action : description | Responsable : nom ou Non precise | Echeance : date ou Non precise
-    5. Questions ouvertes
-    Les sujets a clarifier, ou "Non precise".
-    6. Risques ou blocages
-    Les risques mentionnes, ou "Non precise".
-
-    N'invente ni decision, ni responsable, ni echeance. Si une information n'est
-    pas presente, ecris "Non precise". Ne reproduis pas la transcription brute.
-    Apres l'appel reussi a BuildWord, retourne exactement ces rubriques :
-
-    RESUME_COURT:
-    ...
-
-    COMPTE_RENDU_DETAILLE:
-    1. Resume long
-    ...
-    2. Points importants
-    ...
-    3. Decisions prises
-    ...
-    4. Actions a faire
-    ...
-    5. Questions ouvertes
-    ...
-    6. Risques ou blocages
-    ...
-
-    WORD_PATH:
-    chemin exact du fichier retourne par BuildWord
-
-    Transcription :
-    {transcription}
-    """
-
-    summary_output = run_with_retries(
-        lambda: run_with_model_fallback(prompt_summary),
-        "La generation des resumes",
-        attempts=1,
-    )
-    summary_short, summary_long = split_summary_output(summary_output)
-
-    db_meeting.summary_short = summary_short
-    db_meeting.summary_long = summary_long
-    if not expected_report_path.exists():
-        raise HTTPException(
-            status_code=502,
-            detail="L'agent a genere le resume mais n'a pas cree le document Word avec BuildWord.",
-        )
-
-    db_meeting.report_path = str(expected_report_path)
-    db.commit()
-    db.refresh(db_meeting)
-    return db_meeting
+    meeting = get_meeting_for_current_org(meeting_id, db, auth_context)
+    if not meeting.audio_path:
+        raise HTTPException(404, "Aucun audio conservé pour cette réunion.")
+    try:
+        path = resolve_audio(meeting.audio_path)
+    except ValueError as error:
+        raise HTTPException(404, str(error)) from error
+    return FileResponse(path, media_type="audio/mpeg", filename=f"reunion-{meeting.id}.mp3",
+                        content_disposition_type="inline", headers={"Cache-Control": "private, no-store"})
 
 
 @router.get("/meetings/{meeting_id}/report")

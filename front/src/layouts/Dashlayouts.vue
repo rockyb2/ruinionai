@@ -38,7 +38,9 @@ const notificationsError = ref('')
 const user = computed(() => session.value?.user)
 const organization = computed(() => session.value?.organization)
 const role = computed(() => session.value?.role)
-const canSeeNotifications = computed(() => ['owner', 'admin'].includes(role.value))
+const canSeeNotifications = computed(() => Boolean(organization.value))
+const canSyncTeamInvitations = computed(() => ['owner', 'admin'].includes(role.value))
+let notificationTimer
 const userName = computed(() =>
   [user.value?.first_name, user.value?.last_name].filter(Boolean).join(' ') || 'Utilisateur',
 )
@@ -64,21 +66,24 @@ function notificationLabel(kind) {
     invitation_expiring: 'Bientôt expirée',
     invitation_expired: 'Expirée',
     invitation_accepted: 'Acceptée',
+    meeting_invitation: 'Réunion',
   }[kind] || 'Invitation'
 }
 
-async function loadNotifications({ sync = false } = {}) {
-  if (!canSeeNotifications.value) return
-  notificationsLoading.value = true
-  notificationsError.value = ''
+async function loadNotifications({ sync = false, quiet = false } = {}) {
+  if (!canSeeNotifications.value || notificationsLoading.value) return
+  if (!quiet) {
+    notificationsLoading.value = true
+    notificationsError.value = ''
+  }
   try {
-    if (sync) await syncOrganizationNotifications()
+    if (sync && canSyncTeamInvitations.value) await syncOrganizationNotifications()
     const result = await listOrganizationNotifications({ limit: 20 })
     notifications.value = result.items
     notificationTotal.value = result.total
     unreadNotifications.value = result.unread_count
   } catch (error) {
-    notificationsError.value = error.message || 'Impossible de charger les notifications.'
+    if (!quiet) notificationsError.value = error.message || 'Impossible de charger les notifications.'
   } finally {
     notificationsLoading.value = false
   }
@@ -90,13 +95,18 @@ async function openNotifications() {
 }
 
 async function readNotification(notification) {
-  if (notification.is_read) return
   try {
-    const updated = await markOrganizationNotificationRead(notification.id)
-    notifications.value = notifications.value.map((item) =>
-      item.id === updated.id ? updated : item,
-    )
-    unreadNotifications.value = Math.max(0, unreadNotifications.value - 1)
+    if (!notification.is_read) {
+      const updated = await markOrganizationNotificationRead(notification.id)
+      notifications.value = notifications.value.map((item) =>
+        item.id === updated.id ? updated : item,
+      )
+      unreadNotifications.value = Math.max(0, unreadNotifications.value - 1)
+    }
+    if (notification.meeting_id) {
+      notificationDialog.value?.close()
+      await router.push({ name: 'historique', query: { meeting: notification.meeting_id } })
+    }
   } catch (error) {
     notificationsError.value = error.message || 'Impossible de mettre à jour la notification.'
   }
@@ -141,6 +151,14 @@ function handleOrganizationUpdated(event) {
   }
 }
 
+function refreshNotifications() {
+  if (document.visibilityState === 'visible') loadNotifications({ quiet: true })
+}
+
+async function refreshMeetings() {
+  try { recentMeetings.value = (await listMeetings()).slice(0, 4) } catch { /* Keep the current list on a temporary failure. */ }
+}
+
 async function loadLayout() {
   isLoading.value = true
   try {
@@ -164,9 +182,15 @@ async function loadLayout() {
 onMounted(() => {
   loadLayout()
   window.addEventListener('organization-updated', handleOrganizationUpdated)
+  window.addEventListener('meeting-created', refreshMeetings)
+  window.addEventListener('focus', refreshNotifications)
+  notificationTimer = window.setInterval(refreshNotifications, 30000)
 })
 onBeforeUnmount(() => {
   window.removeEventListener('organization-updated', handleOrganizationUpdated)
+  window.removeEventListener('meeting-created', refreshMeetings)
+  window.removeEventListener('focus', refreshNotifications)
+  window.clearInterval(notificationTimer)
 })
 </script>
 
@@ -299,6 +323,7 @@ onBeforeUnmount(() => {
                 <span class="text-[11px] font-bold text-blue-600">{{ notificationLabel(notification.kind) }}</span>
               </span>
               <span class="mt-1 block text-xs font-semibold leading-5 text-slate-500">{{ notification.message }}</span>
+              <span v-if="notification.meeting_id" class="mt-2 block text-xs font-bold text-blue-600">Voir la réunion →</span>
               <span class="mt-2 block text-[11px] font-semibold text-slate-400">{{ formatNotificationDate(notification.created_at) }}</span>
             </span>
           </button>

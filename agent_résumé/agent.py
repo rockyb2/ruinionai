@@ -67,6 +67,8 @@ def create_agent(model_id):
             BuildPDF(),
         ],
         instructions=PROMPT_SYSTEM,
+        max_steps=7,
+        planning_interval=2
     )
 
     return agent

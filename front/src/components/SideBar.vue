@@ -46,7 +46,7 @@ function formatMeetingDate(value) {
     aria-label="Navigation principale"
   >
     <div class="flex items-center justify-between px-2">
-      <RouterLink :to="{ name: 'dashboard' }" @click="$emit('close')">
+      <RouterLink :to="{ name: 'reunion' }" @click="$emit('close')">
         <img :src="logo" alt="Ruionin AI" class="h-20 w-auto object-contain" />
       </RouterLink>
 
@@ -61,7 +61,7 @@ function formatMeetingDate(value) {
     </div>
 
     <RouterLink
-      :to="{ name: 'dashboard' }"
+      :to="{ name: 'reunion' }"
       class="mt-6 flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700"
       @click="$emit('close')"
     >
@@ -105,7 +105,7 @@ function formatMeetingDate(value) {
         <RouterLink
           v-for="meeting in recentMeetings"
           :key="meeting.id"
-          :to="{ name: 'historique', query: { q: meeting.title } }"
+          :to="{ name: 'historique', query: { meeting: meeting.id } }"
           class="flex items-start gap-3 rounded-xl px-3 py-2.5 transition hover:bg-slate-100"
           @click="$emit('close')"
         >

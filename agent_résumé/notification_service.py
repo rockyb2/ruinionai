@@ -203,6 +203,7 @@ def visible_notifications_query(
     *,
     organization_id: int,
     user_id: int,
+    include_organization_invitations: bool = True,
 ):
     now = datetime.utcnow()
     soon = now + EXPIRING_SOON
@@ -216,17 +217,26 @@ def visible_notifications_query(
             OrganizationNotification.organization_id == organization_id,
             OrganizationNotification.user_id == user_id,
             or_(
-                OrganizationNotification.kind == "invitation_accepted",
                 and_(
-                    OrganizationNotification.kind == "invitation_expiring",
-                    OrganizationInvitation.status == "pending",
-                    OrganizationInvitation.expires_at > now,
-                    OrganizationInvitation.expires_at <= soon,
+                    OrganizationNotification.kind == "meeting_invitation",
+                    OrganizationNotification.meeting_id.is_not(None),
                 ),
                 and_(
-                    OrganizationNotification.kind == "invitation_expired",
-                    OrganizationInvitation.status == "pending",
-                    OrganizationInvitation.expires_at <= now,
+                    include_organization_invitations,
+                    or_(
+                        OrganizationNotification.kind == "invitation_accepted",
+                        and_(
+                            OrganizationNotification.kind == "invitation_expiring",
+                            OrganizationInvitation.status == "pending",
+                            OrganizationInvitation.expires_at > now,
+                            OrganizationInvitation.expires_at <= soon,
+                        ),
+                        and_(
+                            OrganizationNotification.kind == "invitation_expired",
+                            OrganizationInvitation.status == "pending",
+                            OrganizationInvitation.expires_at <= now,
+                        ),
+                    ),
                 ),
             ),
         )

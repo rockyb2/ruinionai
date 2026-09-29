@@ -1,3 +1,6 @@
+import asyncio
+from contextlib import asynccontextmanager, suppress
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from auth.routes import router as auth_router
@@ -10,7 +13,19 @@ from routes.invitation_acceptance import (
 )
 
 
-app = FastAPI(title="RuinionAI Backend")
+@asynccontextmanager
+async def lifespan(app):
+    from meeting_processing import worker_loop
+    worker = asyncio.create_task(worker_loop())
+    try:
+        yield
+    finally:
+        worker.cancel()
+        with suppress(asyncio.CancelledError):
+            await worker
+
+
+app = FastAPI(title="RuinionAI Backend", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

@@ -1,6 +1,6 @@
 from database import Base
 from sqlalchemy import Column, Integer, String, Text, DateTime,ForeignKey,Boolean,Enum
-from sqlalchemy import CheckConstraint, UniqueConstraint
+from sqlalchemy import CheckConstraint, UniqueConstraint, JSON, Float
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
@@ -235,6 +235,10 @@ class OrganizationNotification(Base):
             "invitation_id",
             name="uq_organization_notifications_user_kind_invitation",
         ),
+        UniqueConstraint(
+            "user_id", "kind", "meeting_id",
+            name="uq_organization_notifications_user_kind_meeting",
+        ),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -257,6 +261,9 @@ class OrganizationNotification(Base):
         index=True,
     )
     kind = Column(String(40), nullable=False)
+    meeting_id = Column(
+        Integer, ForeignKey("meetings.id", ondelete="CASCADE"), nullable=True, index=True,
+    )
     title = Column(String(180), nullable=False)
     message = Column(String(500), nullable=False)
     read_at = Column(DateTime, nullable=True)
@@ -286,12 +293,36 @@ class Meeting(Base):
     summary_short = Column(Text, nullable=True)
     summary_long = Column(Text, nullable=True)
     report_path = Column(String, nullable=True)
+    audio_manifest = Column(JSON, nullable=True)
+    audio_path = Column(String, nullable=True)
+    audio_duration = Column(Float, nullable=True)
+    transcription_segments = Column(JSON, nullable=True)
+    processing_status = Column(String(24), nullable=False, default="idle", server_default="idle", index=True)
+    processing_error = Column(Text, nullable=True)
+    processing_token = Column(String(36), nullable=True)
+    processing_expires_at = Column(DateTime, nullable=True)
     created_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     organization = relationship("Organization", back_populates="meetings")
     created_by = relationship("User", back_populates="meetings")
+    invited_members = relationship(
+        "MeetingParticipant", cascade="all, delete-orphan", lazy="selectin",
+        order_by="MeetingParticipant.id", passive_deletes=True,
+    )
+
+    @property
+    def audio_available(self):
+        return bool(self.audio_path)
+
+    @property
+    def has_source_audio(self):
+        return bool(self.audio_manifest or self.audio_path)
+
+    @property
+    def participant_member_ids(self):
+        return [participant.member_id for participant in self.invited_members]
 
     @property
     def summary(self):
@@ -300,3 +331,15 @@ class Meeting(Base):
     @summary.setter
     def summary(self, value):
         self.summary_long = value
+
+
+class MeetingParticipant(Base):
+    __tablename__ = "meeting_participants"
+    __table_args__ = (
+        UniqueConstraint("meeting_id", "member_id", name="uq_meeting_participants_meeting_member"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    meeting_id = Column(Integer, ForeignKey("meetings.id", ondelete="CASCADE"), nullable=False, index=True)
+    member_id = Column(Integer, ForeignKey("organization_members.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)

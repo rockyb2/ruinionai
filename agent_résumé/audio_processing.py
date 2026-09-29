@@ -23,6 +23,10 @@ INPUT_FORMATS = {
     "audio/wav": "wav",
     "audio/x-wav": "wav",
     "audio/mpeg": "mp3",
+    "audio/mp3": "mp3",
+    "audio/flac": "flac",
+    "audio/x-flac": "flac",
+    "audio/aac": "aac",
 }
 
 

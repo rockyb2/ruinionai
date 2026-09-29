@@ -3,6 +3,7 @@ from pydantic import (
     ConfigDict,
     EmailStr,
     Field,
+    PositiveInt,
     computed_field,
     field_validator,
 )
@@ -166,6 +167,7 @@ NotificationKind = Literal[
     "invitation_expiring",
     "invitation_expired",
     "invitation_accepted",
+    "meeting_invitation",
 ]
 
 
@@ -175,6 +177,7 @@ class OrganizationNotificationRead(BaseModel):
     id: int
     organization_id: int
     invitation_id: Optional[int] = None
+    meeting_id: Optional[int] = None
     kind: NotificationKind
     title: str
     message: str
@@ -254,8 +257,39 @@ class CurrentUserResponse(BaseModel):
 
 
 class MeetingCreate(BaseModel):
-    title: str
-    participants: Optional[List[str]] = None
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(min_length=1, max_length=250)
+    participant_member_ids: List[PositiveInt] = Field(default_factory=list, max_length=100)
+
+    @field_validator("title", mode="before")
+    @classmethod
+    def trim_title(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+    @field_validator("participant_member_ids")
+    @classmethod
+    def unique_members(cls, value):
+        return list(dict.fromkeys(value))
+
+
+class MeetingInviteeRead(BaseModel):
+    member_id: int
+    name: str
+    email: str
+
+
+class MeetingInviteesPage(BaseModel):
+    items: List[MeetingInviteeRead]
+    total: int
+    offset: int
+    limit: int
+
+
+class TranscriptSegment(BaseModel):
+    start: float = Field(ge=0, allow_inf_nan=False)
+    end: float = Field(ge=0, allow_inf_nan=False)
+    text: str
 
 
 class MeetingRead(BaseModel):
@@ -267,10 +301,17 @@ class MeetingRead(BaseModel):
     title: str
     transcription: Optional[str] = None
     participants: Optional[str] = None
+    participant_member_ids: List[int] = Field(default_factory=list)
     summary: Optional[str] = None
     summary_short: Optional[str] = None
     summary_long: Optional[str] = None
     report_path: Optional[str] = None
+    audio_available: bool = False
+    has_source_audio: bool = False
+    audio_duration: Optional[float] = None
+    transcription_segments: Optional[List[TranscriptSegment]] = None
+    processing_status: str = "idle"
+    processing_error: Optional[str] = None
     date: Optional[datetime] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
