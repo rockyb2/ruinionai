@@ -20,10 +20,15 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    op.execute(
-        "ALTER TYPE organization_member_role "
-        "ADD VALUE IF NOT EXISTS 'owner' BEFORE 'admin'"
-    )
+    # PostgreSQL requires a newly added enum value to be committed before a
+    # later migration can use it. Alembic may run several revisions inside the
+    # same transaction during a fresh deployment, so this statement needs its
+    # own committed block.
+    with op.get_context().autocommit_block():
+        op.execute(
+            "ALTER TYPE organization_member_role "
+            "ADD VALUE IF NOT EXISTS 'owner' BEFORE 'admin'"
+        )
 
     postgresql.ENUM(
         "active",
