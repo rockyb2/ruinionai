@@ -20,7 +20,8 @@ services:
 
   backend:
     build: ./agent_résumé
-    environment:
+    
+    environment: 
       DATABASE_URL: postgresql+psycopg://ruinionai:${POSTGRES_PASSWORD}@db:5432/ruinionai
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is not set in .env file}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
@@ -38,7 +39,11 @@ services:
       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
       REPORTS_DIR: /app/storage/reports
       AUDIO_DIR: /app/storage/audio
-
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      LANGFUSE_BASE_URL: ${LANGFUSE_BASE_URL}
+      LANGFUSE_TRACING_ENVIRONMENT: ${LANGFUSE_TRACING_ENVIRONMENT:-production}
+      
     restart: unless-stopped
 
     command: >

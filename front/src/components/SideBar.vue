@@ -45,7 +45,7 @@ function formatMeetingDate(value) {
     :class="open ? 'translate-x-0' : '-translate-x-full'"
     aria-label="Navigation principale"
   >
-    <div class="flex items-center justify-between px-2">
+    <div class="flex items-center justify-center px-2">
       <RouterLink :to="{ name: 'reunion' }" @click="$emit('close')">
         <img :src="logo" alt="Ruionin AI" class="h-20 w-auto object-contain" />
       </RouterLink>

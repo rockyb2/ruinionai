@@ -8,6 +8,16 @@ import Login from '../views/Login.vue'
 import Reunion from '../views/Reunion.vue'
 import Setting from '../views/Setting.vue'
 import Signin from '../views/Signin.vue'
+import DashAdminLayouts from '../layouts/DashAdminLayouts.vue'
+import Dashboard from '../views/admin/Dashboard.vue'
+import Utilisateurs from '../views/admin/Utilisateurs.vue'
+import Usage from '../views/admin/Usage.vue'
+import Reunions from '../views/admin/Reunions.vue'
+import Audit from '../views/admin/Audit.vue'
+import Abonnements from '../views/admin/Abonnements.vue'
+import Configurations from '../views/admin/Configurations.vue'
+import AIfournisseurs from '../views/admin/AIfournisseurs.vue'
+import Organisations from '../views/admin/Organisations.vue'
 import { isAuthenticated } from '../service/api'
 
 const routes = [
@@ -59,6 +69,64 @@ const routes = [
     component: Signin,
     meta: { guestOnly: true },
   },
+
+  // route administration
+  {
+    path: '/admin',
+    component: DashAdminLayouts,
+    meta: { requiresAuth: true },
+    children: [
+      {
+        path: '',
+        redirect: '/admin/dashboard',
+      },
+      {
+        path: 'dashboard',
+        name: 'admin-dashboard',
+        component: Dashboard,
+      },
+      {
+        path: 'utilisateurs',
+        name: 'admin-utilisateurs',
+        component: Utilisateurs,
+      },
+      {
+        path: 'usage',
+        name: 'admin-usage',
+        component: Usage,
+      },
+      {
+        path: 'reunions',
+        name: 'admin-reunions',
+        component: Reunions,
+      },
+      {
+        path: 'audit',
+        name: 'admin-audit',
+        component: Audit,
+      },
+      {
+        path: 'abonnements',
+        name: 'admin-abonnements',
+        component: Abonnements,
+      },
+      {
+        path: 'configurations',
+        name: 'admin-configurations',
+        component: Configurations,
+      },
+      {
+        path: 'aifournisseurs',
+        name: 'admin-aifournisseurs',
+        component: AIfournisseurs,
+      },
+      {
+        path: 'organisations',
+        name: 'admin-organisations',
+        component: Organisations,
+      },
+    ]
+  }
 ]
 
 const router = createRouter({

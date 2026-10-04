@@ -133,26 +133,141 @@ def generate_content(context, model):
         model.startswith("openrouter/") and model.endswith(":free")
     )
     options = {"response_format": {"type": "json_object"}} if supports_json_mode else {}
-    response = completion(
-        model=model,
-        api_key=api_key,
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": json.dumps(context, ensure_ascii=False)},
-        ],
-        max_tokens=3000,
-        timeout=25,
-        num_retries=0,
-        **options,
-    )
-    choice = response.choices[0]
-    if choice.finish_reason != "stop":
-        raise ValueError("Réponse interrompue ou incomplète.")
-    content = (choice.message.content or "").strip()
-    if not supports_json_mode:
-        fenced = re.fullmatch(
-            r"```(?:json)?\s*([\s\S]*?)\s*```", content, re.IGNORECASE
-        )
-        if fenced:
-            content = fenced.group(1)
+    
+    # L’import est effectué ici, après le chargement des variables
+    # d’environnement par l’application.
+    from langfuse import get_client
+
+    langfuse = get_client()
+
+    messages = [
+        {
+            "role": "system",
+            "content": system,
+        },
+        {
+            "role": "user",
+            "content": json.dumps(context, ensure_ascii=False),
+        },
+    ]
+
+    try:
+        with langfuse.start_as_current_observation(
+            as_type="generation",
+            name="generation-compte-rendu",
+            model=model,
+            input=messages,
+            model_parameters={
+                "max_tokens": 3000,
+                "timeout": 25,
+                "temperature": 0,
+                "json_mode": supports_json_mode,
+            },
+            metadata={
+                "feature": "meeting-summary",
+                "meeting_title": context.get("title"),
+                "organization": context.get("organization"),
+            },
+        ) as generation:
+            response = completion(
+                model=model,
+                api_key=api_key,
+                messages=messages,
+                max_tokens=3000,
+                timeout=25,
+                num_retries=0,
+                **options,
+            )
+
+            choice = response.choices[0]
+            content = (choice.message.content or "").strip()
+
+            # LiteLLM fournit généralement les informations de consommation
+            # dans response.usage.
+            usage = getattr(response, "usage", None)
+            usage_details = {}
+
+            if usage is not None:
+                prompt_tokens = getattr(usage, "prompt_tokens", None)
+                completion_tokens = getattr(usage, "completion_tokens", None)
+                total_tokens = getattr(usage, "total_tokens", None)
+
+                if prompt_tokens is not None:
+                    usage_details["input"] = prompt_tokens
+
+                if completion_tokens is not None:
+                    usage_details["output"] = completion_tokens
+
+                if total_tokens is not None:
+                    usage_details["total"] = total_tokens
+
+            # On enregistre la réponse avant sa validation. Ainsi, si le JSON
+            # est incorrect, tu pourras voir dans Langfuse ce que le modèle
+            # avait réellement renvoyé.
+            update_values = {
+                "output": content,
+                "metadata": {
+                    "finish_reason": choice.finish_reason,
+                    "response_validated": False,
+                },
+            }
+
+            if usage_details:
+                update_values["usage_details"] = usage_details
+
+            generation.update(**update_values)
+
+            if choice.finish_reason != "stop":
+                raise ValueError("Réponse interrompue ou incomplète.")
+
+            if not supports_json_mode:
+                fenced = re.fullmatch(
+                    r"```(?:json)?\s*([\s\S]*?)\s*```",
+                    content,
+                    re.IGNORECASE,
+                )
+
+                if fenced:
+                    content = fenced.group(1)
+
+            result = MeetingContent.model_validate_json(content).summaries()
+
+            # La validation Pydantic a réussi.
+            generation.update(
+                output=result,
+                metadata={
+                    "finish_reason": choice.finish_reason,
+                    "response_validated": True,
+                },
+            )
+
+            return result
+
+    finally:
+        # generate_content est exécutée dans un sous-processus court.
+        # Sans flush, le processus pourrait s’arrêter avant l’envoi de la trace.
+        langfuse.flush()
+    
+    # response = completion(
+    #     model=model,
+    #     api_key=api_key,
+    #     messages=[
+    #         {"role": "system", "content": system},
+    #         {"role": "user", "content": json.dumps(context, ensure_ascii=False)},
+    #     ],
+    #     max_tokens=3000,
+    #     timeout=25,
+    #     num_retries=0,
+    #     **options,
+    # )
+    # choice = response.choices[0]
+    # if choice.finish_reason != "stop":
+    #     raise ValueError("Réponse interrompue ou incomplète.")
+    # content = (choice.message.content or "").strip()
+    # if not supports_json_mode:
+    #     fenced = re.fullmatch(
+    #         r"```(?:json)?\s*([\s\S]*?)\s*```", content, re.IGNORECASE
+    #     )
+    #     if fenced:
+    #         content = fenced.group(1)
     return MeetingContent.model_validate_json(content).summaries()

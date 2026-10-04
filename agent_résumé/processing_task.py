@@ -121,9 +121,106 @@ def safe_error(error, stage):
 
 
 if __name__ == "__main__":
-    payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+    payload = json.loads(
+        Path(sys.argv[1]).read_text(encoding="utf-8")
+    )
+
+    # L’import est volontairement placé ici. Les variables Langfuse sont déjà
+    # disponibles dans l’environnement du sous-processus.
+    from langfuse import get_client
+
+    langfuse = get_client()
+
+    meeting_id = payload["meeting_id"]
+    processing_token = payload["token"]
+    stage = payload["stage"]
+
+    # Le token reste identique pendant toutes les étapes d’un même traitement.
+    # Chaque sous-processus reconstruit donc exactement le même trace_id.
+    trace_id = langfuse.create_trace_id(
+        seed=f"meeting:{meeting_id}:processing:{processing_token}"
+    )
+
+    stage_names = {
+        "preparing": "preparation-audio",
+        "transcribing": "transcription",
+        "writing": "redaction-compte-rendu",
+        "building": "creation-document-word",
+    }
+
+    # On évite de dupliquer toute la transcription dans l’entrée du span.
+    # Elle est déjà enregistrée dans la génération Langfuse.
+    context = payload.get("context") or {}
+    transcription = context.get("transcription") or ""
+
+    trace_input = {
+        "meeting_id": meeting_id,
+        "stage": stage,
+        "model": payload.get("model"),
+        "audio_duration": payload.get("audio_duration"),
+        "transcription_characters": len(transcription),
+    }
+
     try:
-        result = {"result": execute(payload)}
-    except Exception as error:
-        result = {"error": safe_error(error, payload["stage"])}
-    Path(sys.argv[2]).write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
+        with langfuse.start_as_current_observation(
+            trace_context={
+                "trace_id": trace_id,
+            },
+            as_type="span",
+            name=stage_names.get(stage, stage),
+            input=trace_input,
+            metadata={
+                "meeting_id": meeting_id,
+                "processing_token": processing_token,
+                "stage": stage,
+                "model": payload.get("model"),
+            },
+        ) as stage_observation:
+            try:
+                value = execute(payload)
+
+                stage_observation.update(
+                    output=value,
+                    metadata={
+                        "meeting_id": meeting_id,
+                        "stage": stage,
+                        "model": payload.get("model"),
+                        "status": "completed",
+                    },
+                )
+
+                result = {
+                    "result": value,
+                }
+
+            except Exception as error:
+                # Le message technique est visible dans Langfuse.
+                stage_observation.update(
+                    level="ERROR",
+                    status_message=str(error),
+                    output={
+                        "status": "failed",
+                        "error_type": type(error).__name__,
+                    },
+                    metadata={
+                        "meeting_id": meeting_id,
+                        "stage": stage,
+                        "model": payload.get("model"),
+                        "status": "failed",
+                    },
+                )
+
+                # L’application reçoit toujours le message sécurisé produit
+                # par safe_error().
+                result = {
+                    "error": safe_error(error, stage),
+                }
+
+    finally:
+        # Le sous-processus va se fermer : il faut terminer l’envoi.
+        langfuse.flush()
+
+    Path(sys.argv[2]).write_text(
+        json.dumps(result, ensure_ascii=False),
+        encoding="utf-8",
+    )
