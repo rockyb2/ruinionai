@@ -8,16 +8,6 @@ import Login from '../views/Login.vue'
 import Reunion from '../views/Reunion.vue'
 import Setting from '../views/Setting.vue'
 import Signin from '../views/Signin.vue'
-import DashAdminLayouts from '../layouts/DashAdminLayouts.vue'
-import Dashboard from '../views/admin/Dashboard.vue'
-import Utilisateurs from '../views/admin/Utilisateurs.vue'
-import Usage from '../views/admin/Usage.vue'
-import Reunions from '../views/admin/Reunions.vue'
-import Audit from '../views/admin/Audit.vue'
-import Abonnements from '../views/admin/Abonnements.vue'
-import Configurations from '../views/admin/Configurations.vue'
-import AIfournisseurs from '../views/admin/AIfournisseurs.vue'
-import Organisations from '../views/admin/Organisations.vue'
 import { isAuthenticated } from '../service/api'
 
 const routes = [
@@ -73,8 +63,10 @@ const routes = [
   // route administration
   {
     path: '/admin',
-    component: DashAdminLayouts,
-    meta: { requiresAuth: true },
+    component: () => import('../layouts/DashAdminLayouts.vue'),
+    // Prévisualisation publique contenant uniquement des données fictives.
+    // Une autorisation serveur sera nécessaire avant de brancher des données réelles.
+    meta: { adminDemo: true },
     children: [
       {
         path: '',
@@ -83,47 +75,52 @@ const routes = [
       {
         path: 'dashboard',
         name: 'admin-dashboard',
-        component: Dashboard,
+        component: () => import('../views/admin/Dashboard.vue'),
       },
       {
         path: 'utilisateurs',
         name: 'admin-utilisateurs',
-        component: Utilisateurs,
+        component: () => import('../views/admin/Utilisateurs.vue'),
       },
       {
         path: 'usage',
         name: 'admin-usage',
-        component: Usage,
+        component: () => import('../views/admin/Usage.vue'),
       },
       {
         path: 'reunions',
         name: 'admin-reunions',
-        component: Reunions,
+        component: () => import('../views/admin/Reunions.vue'),
       },
       {
         path: 'audit',
         name: 'admin-audit',
-        component: Audit,
+        component: () => import('../views/admin/Audit.vue'),
       },
       {
         path: 'abonnements',
         name: 'admin-abonnements',
-        component: Abonnements,
+        component: () => import('../views/admin/Abonnements.vue'),
       },
       {
         path: 'configurations',
         name: 'admin-configurations',
-        component: Configurations,
+        component: () => import('../views/admin/Configurations.vue'),
       },
       {
         path: 'aifournisseurs',
         name: 'admin-aifournisseurs',
-        component: AIfournisseurs,
+        component: () => import('../views/admin/AIfournisseurs.vue'),
       },
       {
         path: 'organisations',
         name: 'admin-organisations',
-        component: Organisations,
+        component: () => import('../views/admin/Organisations.vue'),
+      },
+      {
+        path: 'incidents',
+        name: 'admin-incidents',
+        component: () => import('../views/admin/Incidents.vue'),
       },
     ]
   }
