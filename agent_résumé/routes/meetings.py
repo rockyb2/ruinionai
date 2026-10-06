@@ -45,7 +45,7 @@ def resolve_report_path(report_path: str | None) -> Path:
     reports_dir = get_reports_dir().resolve()
     file_path = Path(report_path).resolve()
 
-    if not file_path.is_relative_to(reports_dir) or not file_path.exists():
+    if not file_path.is_relative_to(reports_dir) or not file_path.is_file():
         raise HTTPException(status_code=404, detail="Compte rendu introuvable.")
 
     return file_path
@@ -228,6 +228,11 @@ def summarize_meeting(
     auth_context: AuthContext = Depends(get_auth_context),
 ):
     meeting = get_meeting_for_current_org(meeting_id, db, auth_context)
+    return enqueue_summary(meeting, response, db)
+
+
+def enqueue_summary(meeting: Meeting, response: Response, db: Session):
+    """File de traitement commune à l'espace équipe et à l'administration."""
     if meeting.processing_status in ACTIVE:
         return meeting
     if not meeting.transcription and not meeting.has_source_audio:

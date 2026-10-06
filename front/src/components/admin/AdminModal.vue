@@ -1,7 +1,7 @@
 <script setup>
 import { nextTick, onBeforeUnmount, ref, watch } from "vue";
 import AdminIcon from "./AdminIcon.vue";
-const props = defineProps({ open: Boolean, title: String });
+const props = defineProps({ open: Boolean, title: String, hint: { type: String, default: 'Démonstration · Les changements restent dans cette session.' } });
 const emit = defineEmits(["close"]);
 const dialog = ref(null);
 let previousFocus;
@@ -41,9 +41,7 @@ onBeforeUnmount(() => dialog.value?.close());
         <AdminIcon name="x" />
       </button>
     </header>
-    <p class="a-demo-hint">
-      Démonstration · Les changements restent dans cette session.
-    </p>
+    <p v-if="hint" class="a-demo-hint">{{ hint }}</p>
     <slot />
   </dialog>
 </template>

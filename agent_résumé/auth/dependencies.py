@@ -45,6 +45,18 @@ def get_current_user(
     return user
 
 
+def require_platform_admin(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    if not current_user.is_super_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Droits de super administrateur requis.",
+        )
+
+    return current_user
+
+
 def get_auth_context(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),

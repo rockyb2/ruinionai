@@ -1,368 +1,84 @@
 <script setup>
-import { computed, reactive, ref } from "vue";
-import {
-  AdminAvatar,
-  AdminBadge,
-  AdminDetail,
-  AdminIcon,
-  AdminModal,
-  AdminPanel,
-  AdminStats,
-  AdminTable,
-  AdminToggle,
-} from "../../components/admin";
-import {
-  users,
-  organisations,
-  meetings,
-  audit,
-  money,
-  notify,
-} from "../../admin/demo";
-import { useDemoSelection } from "../../admin/useDemoSelection";
-const selected = useDemoSelection(users),
-  tab = ref("Informations"),
-  modal = ref(false),
-  editing = ref(false);
-const form = reactive({
-  name: "",
-  email: "",
-  organization: "Ivoir Trips",
-  role: "Membre",
-});
-const permissionsByUser = reactive({});
-const permissions = computed(() => {
-  const id = selected.value?.id;
-  return permissionsByUser[id] ||= { meetings: true, export: true, team: false };
-});
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import AdminDetail from '../../components/admin/AdminDetail.vue'
+import AdminIcon from '../../components/admin/AdminIcon.vue'
+import AdminModal from '../../components/admin/AdminModal.vue'
+import AdminPanel from '../../components/admin/AdminPanel.vue'
+import AdminRemoteTable from '../../components/admin/AdminRemoteTable.vue'
+import AdminStats from '../../components/admin/AdminStats.vue'
+import { adminList, adminRequest } from '../../service/admin'
+import { dateLabel, roleName } from '../../admin/format'
+
+const route = useRoute(), router = useRouter()
+const rows = ref([]), total = ref(0), offset = ref(0), limit = 20, stats = ref({}), loading = ref(false)
+const query = ref(''), activeFilter = ref(''), error = ref(''), message = ref(''), selected = ref(null)
+const modal = ref(false), editing = ref(false), passwordModal = ref(false)
+const form = ref({ first_name: '', last_name: '', email: '', password: '' }), password = ref('')
+let timer
 const columns = [
-  { key: "name", label: "Utilisateur" },
-  { key: "organization", label: "Organisation" },
-  { key: "role", label: "Rôle" },
-  { key: "status", label: "Statut" },
-  { key: "lastSeen", label: "Dernière connexion" },
-  { key: "meetings", label: "Réunions" },
-];
-const stats = computed(() => [
-  {
-    label: "Total utilisateurs",
-    value: users.length,
-    icon: "users",
-    color: "green",
-    change: "↗ +18 %",
-  },
-  {
-    label: "Utilisateurs actifs",
-    value: users.filter((u) => u.status === "Actif").length,
-    icon: "success",
-    color: "green",
-    change: "↗ +21 %",
-  },
-  {
-    label: "En attente",
-    value: users.filter((u) => u.status === "En attente").length,
-    icon: "send",
-    change: "↗ +40 %",
-  },
-  {
-    label: "Inactifs",
-    value: users.filter((u) => u.status === "Inactif").length,
-    icon: "clock",
-    color: "orange",
-    change: "↘ −12 %",
-  },
-]);
-const organization = computed(() =>
-  organisations.find((o) => o.name === selected.value?.organization),
-);
-const userMeetings = computed(() =>
-  meetings.filter((m) => m.creator === selected.value?.name),
-);
-const userActions = computed(() =>
-  audit.filter((a) => a.user === selected.value?.name),
-);
-function openForm(edit = false) {
-  editing.value = edit;
-  Object.assign(
-    form,
-    edit
-      ? selected.value
-      : {
-          name: "",
-          email: "",
-          organization: organisations[0].name,
-          role: "Membre",
-        },
-  );
-  modal.value = true;
+  { key: 'name', label: 'Utilisateur' }, { key: 'email', label: 'E-mail' },
+  { key: 'memberships', label: 'Organisations', format: value => value.length },
+  { key: 'meetings_count', label: 'Réunions créées' },
+  { key: 'is_active', label: 'Statut', format: value => value ? 'Actif' : 'Inactif' },
+  { key: 'created_at', label: 'Créé le', format: dateLabel },
+]
+const cards = computed(() => [
+  { label: 'Utilisateurs', value: stats.value.total || 0, icon: 'users', color: 'green', note: 'Comptes enregistrés' },
+  { label: 'Actifs', value: stats.value.active || 0, icon: 'success', color: 'blue', note: 'Accès autorisé' },
+  { label: 'Inactifs', value: stats.value.inactive || 0, icon: 'clock', color: 'orange', note: 'Accès bloqué' },
+  { label: 'Super administrateurs', value: stats.value.super_admins || 0, icon: 'shield', color: 'purple', note: 'Accès plateforme' },
+])
+async function load() {
+  loading.value = true; error.value = ''
+  try {
+    const data = await adminList('users', { q: query.value, offset: offset.value, limit, is_active: activeFilter.value })
+    rows.value = data.items; total.value = data.total; stats.value = data.stats
+    const requested = Number(route.query.id); if (requested && requested !== selected.value?.id) await select(requested)
+  } catch (e) { error.value = e.message } finally { loading.value = false }
 }
-function save() {
-  if (!form.name.trim()) return;
-  if (editing.value) Object.assign(selected.value, form);
-  else {
-    const user = {
-      ...form,
-      id: Date.now(),
-      status: "En attente",
-      lastSeen: "Jamais",
-      meetings: 0,
-      date: "30 septembre 2026",
-    };
-    users.unshift(user);
-    selected.value = user;
-  }
-  modal.value = false;
-  notify(
-    editing.value
-      ? "Profil de démonstration modifié."
-      : "Invitation simulée. Aucun message n’a été envoyé.",
-  );
+async function select(id) {
+  try { selected.value = await adminRequest(`/users/${id}`); router.replace({ query: { ...route.query, id } }) }
+  catch (e) { error.value = e.message }
 }
+function closeDetail() { selected.value = null; router.replace({ query: {} }) }
+function openCreate() { editing.value = false; form.value = { first_name: '', last_name: '', email: '', password: '' }; modal.value = true }
+function openEdit() { editing.value = true; form.value = { first_name: selected.value.first_name, last_name: selected.value.last_name, email: selected.value.email }; modal.value = true }
+async function save() {
+  try {
+    const result = await adminRequest(editing.value ? `/users/${selected.value.id}` : '/users', { method: editing.value ? 'PATCH' : 'POST', body: form.value })
+    modal.value = false; message.value = editing.value ? 'Utilisateur modifié.' : 'Utilisateur créé.'; await load(); await select(result.id)
+  } catch (e) { error.value = e.message }
+}
+async function toggleActive() {
+  try { selected.value = await adminRequest(`/users/${selected.value.id}`, { method: 'PATCH', body: { is_active: !selected.value.is_active } }); await load(); message.value = selected.value.is_active ? 'Compte réactivé.' : 'Compte désactivé.' }
+  catch (e) { error.value = e.message }
+}
+async function resetPassword() {
+  try { await adminRequest(`/users/${selected.value.id}/password`, { method: 'POST', body: { password: password.value } }); passwordModal.value = false; password.value = ''; message.value = 'Mot de passe remplacé.' }
+  catch (e) { error.value = e.message }
+}
+async function remove() {
+  if (!confirm(`Supprimer le compte de ${selected.value.name || selected.value.email} ?`)) return
+  try { await adminRequest(`/users/${selected.value.id}`, { method: 'DELETE' }); closeDetail(); await load(); message.value = 'Compte supprimé.' }
+  catch (e) { error.value = e.message }
+}
+watch([query, activeFilter], () => { clearTimeout(timer); offset.value = 0; timer = setTimeout(load, 250) })
+onMounted(load)
 </script>
+
 <template>
-  <div class="a-toolbar">
-    <span class="a-muted">Comptes et accès à la plateforme</span
-    ><button class="a-button a-button-primary" @click="openForm()">
-      <AdminIcon name="plus" :size="17" />Inviter un utilisateur
-    </button>
+  <div class="a-stack">
+    <div class="a-toolbar"><div><strong>Comptes de la plateforme</strong><p class="a-muted">Les rôles d’équipe se gèrent depuis chaque organisation</p></div><button class="a-button a-button-primary" @click="openCreate"><AdminIcon name="plus" />Nouvel utilisateur</button></div>
+    <p v-if="error" class="a-card a-panel a-danger-text" role="alert">{{ error }}</p><p v-if="message" class="a-card a-panel a-success-text" role="status">{{ message }}</p>
+    <AdminStats :items="cards" />
+    <div class="a-split" :class="{ 'a-no-detail': !selected }"><div class="a-stack"><div class="a-filters a-card"><label class="a-search"><AdminIcon name="search" /><input v-model="query" type="search" placeholder="Nom ou e-mail…" /></label><label class="a-field"><span>Statut</span><select v-model="activeFilter"><option value="">Tous</option><option value="true">Actifs</option><option value="false">Inactifs</option></select></label></div><AdminRemoteTable :rows="rows" :columns="columns" :total="total" :offset="offset" :limit="limit" :loading="loading" :selected-id="selected?.id" @page="value => { offset = value; load() }" @select="select" /></div>
+      <AdminDetail v-if="selected" :title="selected.name || selected.email" :subtitle="selected.email" :status="selected.is_active ? 'Actif' : 'Inactif'" @close="closeDetail">
+        <AdminPanel title="Informations personnelles"><dl class="a-definition"><dt>Prénom</dt><dd>{{ selected.first_name }}</dd><dt>Nom</dt><dd>{{ selected.last_name }}</dd><dt>E-mail</dt><dd>{{ selected.email }}</dd><dt>Créé le</dt><dd>{{ dateLabel(selected.created_at) }}</dd><dt>Réunions créées</dt><dd>{{ selected.meetings_count }}</dd><dt>Accès plateforme</dt><dd>{{ selected.is_super_admin ? 'Super administrateur' : 'Utilisateur' }}</dd></dl></AdminPanel>
+        <AdminPanel title="Organisations et rôles"><div class="a-list"><RouterLink v-for="membership in selected.memberships" :key="membership.id" :to="`/admin/organisations?id=${membership.organization_id}`" class="a-list-item"><AdminIcon name="building" /><div><strong>{{ membership.organization_name }}</strong><small>{{ roleName(membership.role) }} · {{ membership.status === 'active' ? 'Actif' : 'Inactif' }}</small></div></RouterLink><p v-if="!selected.memberships.length" class="a-muted">Ce compte n’appartient à aucune organisation.</p></div></AdminPanel>
+        <template #footer><button class="a-button a-button-danger" @click="remove"><AdminIcon name="trash" />Supprimer</button><button class="a-button" @click="toggleActive">{{ selected.is_active ? 'Désactiver' : 'Réactiver' }}</button><button class="a-button" @click="password = ''; passwordModal = true"><AdminIcon name="key" />Mot de passe</button><button class="a-button a-button-primary" @click="openEdit"><AdminIcon name="edit" />Modifier</button></template>
+      </AdminDetail></div>
+    <AdminModal :open="modal" :title="editing ? 'Modifier l’utilisateur' : 'Nouvel utilisateur'" hint="Le compte sera enregistré dans la base." @close="modal = false"><form class="a-form" @submit.prevent="save"><label class="a-field">Prénom<input v-model="form.first_name" required maxlength="150" /></label><label class="a-field">Nom<input v-model="form.last_name" required maxlength="150" /></label><label class="a-field">E-mail<input v-model="form.email" type="email" required /></label><label v-if="!editing" class="a-field">Mot de passe temporaire<input v-model="form.password" type="password" required minlength="8" maxlength="72" /></label><div class="a-form-footer"><button type="button" class="a-button" @click="modal = false">Annuler</button><button class="a-button a-button-primary">Enregistrer</button></div></form></AdminModal>
+    <AdminModal :open="passwordModal" title="Remplacer le mot de passe" hint="L’utilisateur devra employer ce nouveau mot de passe à sa prochaine connexion." @close="passwordModal = false"><form class="a-form" @submit.prevent="resetPassword"><label class="a-field">Nouveau mot de passe<input v-model="password" type="password" required minlength="8" maxlength="72" autocomplete="new-password" /></label><div class="a-form-footer"><button type="button" class="a-button" @click="passwordModal = false">Annuler</button><button class="a-button a-button-primary">Enregistrer</button></div></form></AdminModal>
   </div>
-  <AdminStats :items="stats" />
-  <div class="a-split" :class="{ 'a-no-detail': !selected }">
-    <AdminTable
-      :rows="users"
-      :columns="columns"
-      :tabs="['Actif', 'Inactif', 'En attente', 'Suspendu']"
-      :filters="[
-        { key: 'organization', label: 'Organisation' },
-        { key: 'role', label: 'Rôle' },
-      ]"
-      :selected-id="selected?.id"
-      :page-size="10"
-      label="utilisateurs"
-      search-placeholder="Rechercher un utilisateur, un e-mail…"
-      export-name="utilisateurs-demo.csv"
-      @select="
-        selected = $event;
-        tab = 'Informations';
-      "
-    >
-      <template #name="{ row }"
-        ><div class="a-identity">
-          <AdminAvatar :name="row.name" />
-          <div>
-            <strong>{{ row.name }}</strong
-            ><small>{{ row.email }}</small>
-          </div>
-        </div></template
-      ><template #role="{ value }"><AdminBadge :value="value" /></template
-      ><template #status="{ value }"
-        ><AdminBadge :value="value" dot
-      /></template>
-    </AdminTable>
-    <AdminDetail
-      v-if="selected"
-      v-model="tab"
-      :title="selected.name"
-      :subtitle="`${selected.role} · ${selected.organization}`"
-      :status="selected.status"
-      :tabs="['Informations', 'Activité', 'Réunions', 'Permissions']"
-      @close="selected = null"
-    >
-      <template v-if="tab === 'Informations'"
-        ><AdminPanel title="Informations personnelles"
-          ><template #action
-            ><button class="a-button a-button-soft" @click="openForm(true)">
-              <AdminIcon name="edit" :size="14" />Modifier
-            </button></template
-          >
-          <dl class="a-definition">
-            <dt>Nom complet</dt>
-            <dd>{{ selected.name }}</dd>
-            <dt>E-mail</dt>
-            <dd>{{ selected.email }}</dd>
-            <dt>Organisation</dt>
-            <dd>
-              <RouterLink
-                :to="`/admin/organisations?id=${organization?.id || 1}`"
-                class="a-link"
-                >{{ selected.organization }}</RouterLink
-              >
-            </dd>
-            <dt>Rôle</dt>
-            <dd><AdminBadge :value="selected.role" /></dd>
-            <dt>Statut</dt>
-            <dd><AdminBadge :value="selected.status" dot /></dd>
-            <dt>Membre depuis</dt>
-            <dd>{{ selected.date }}</dd>
-            <dt>Dernière connexion</dt>
-            <dd>{{ selected.lastSeen }}</dd>
-            <dt>Fuseau horaire</dt>
-            <dd>Africa/Abidjan</dd>
-          </dl></AdminPanel
-        >
-        <AdminPanel title="Statistiques d’usage"
-          ><AdminStats
-            :items="[
-              {
-                label: 'Réunions créées',
-                value: selected.meetings,
-                icon: 'video',
-                color: 'blue',
-                note: 'Ce mois-ci',
-              },
-              {
-                label: 'Heures audio',
-                value: Math.round(selected.meetings * 1.4) + ' h',
-                icon: 'clock',
-                color: 'orange',
-                note: 'Ce mois-ci',
-              },
-              {
-                label: 'Coût IA estimé',
-                value: money(selected.meetings * 487),
-                icon: 'database',
-                color: 'red',
-                note: 'Données fictives',
-              },
-              {
-                label: 'Documents exportés',
-                value: Math.floor(selected.meetings / 4),
-                icon: 'file',
-                color: 'green',
-                note: 'Ce mois-ci',
-              },
-            ]"
-        /></AdminPanel>
-        <AdminPanel title="Organisation et rôle"
-          ><template #action
-            ><RouterLink
-              :to="`/admin/organisations?id=${organization?.id || 1}`"
-              class="a-link"
-              >Voir l’organisation</RouterLink
-            ></template
-          >
-          <div class="a-identity">
-            <AdminAvatar :name="selected.organization" large />
-            <div>
-              <strong>{{ selected.organization }}</strong
-              ><small>{{ organization?.description }}</small>
-            </div>
-            <AdminBadge :value="selected.role" /></div></AdminPanel
-      ></template>
-      <AdminPanel v-else-if="tab === 'Activité'" title="Dernières actions"
-        ><div class="a-list">
-          <div
-            v-for="action in userActions"
-            :key="action.id"
-            class="a-list-item"
-          >
-            <AdminIcon name="activity" />
-            <div>
-              <strong>{{ action.action }}</strong
-              ><small>{{ action.date }} · {{ action.time }}</small>
-              <p>{{ action.details }}</p>
-            </div>
-            <AdminBadge :value="action.status" />
-          </div>
-          <p v-if="!userActions.length" class="a-muted">
-            Aucune activité pour ce compte de démonstration.
-          </p>
-        </div></AdminPanel
-      >
-      <AdminPanel v-else-if="tab === 'Réunions'" title="Réunions créées"
-        ><div class="a-list">
-          <RouterLink
-            v-for="meeting in userMeetings"
-            :key="meeting.id"
-            :to="`/admin/reunions?id=${meeting.id}`"
-            class="a-list-item"
-            ><AdminIcon name="video" />
-            <div>
-              {{ meeting.title }}<small>{{ meeting.date }}</small>
-            </div>
-            <AdminBadge :value="meeting.status"
-          /></RouterLink>
-          <p v-if="!userMeetings.length" class="a-muted">
-            Aucune réunion pour cet utilisateur.
-          </p>
-        </div></AdminPanel
-      >
-      <AdminPanel v-else title="Permissions de démonstration"
-        ><AdminToggle
-          v-model="permissions.meetings"
-          label="Créer et consulter des réunions"
-        /><AdminToggle
-          v-model="permissions.export"
-          label="Exporter des documents"
-        /><AdminToggle
-          v-model="permissions.team"
-          label="Gérer les membres de l’équipe"
-        /><button
-          class="a-button a-button-primary a-spaced"
-          @click="
-            notify('Permissions simulées enregistrées pour cette session.')
-          "
-        >
-          Enregistrer les permissions
-        </button></AdminPanel
-      >
-      <template #footer
-        ><button
-          class="a-button a-button-danger"
-          @click="
-            selected.status =
-              selected.status === 'Suspendu' ? 'Actif' : 'Suspendu';
-            notify('Statut du compte de démonstration modifié.');
-          "
-        >
-          {{
-            selected.status === "Suspendu"
-              ? "Réactiver le compte"
-              : "Suspendre le compte"
-          }}</button
-        ><button
-          class="a-button"
-          @click="
-            notify('Réinitialisation simulée. Aucun e-mail n’a été envoyé.')
-          "
-        >
-          <AdminIcon name="key" :size="14" />Réinitialiser le mot de passe
-        </button></template
-      >
-    </AdminDetail>
-  </div>
-  <AdminModal
-    :open="modal"
-    :title="editing ? 'Modifier l’utilisateur' : 'Inviter un utilisateur'"
-    @close="modal = false"
-    ><form class="a-form" @submit.prevent="save">
-      <label class="a-field"
-        >Nom complet<input v-model="form.name" required maxlength="80" /></label
-      ><label class="a-field"
-        >Adresse e-mail<input
-          v-model="form.email"
-          type="email"
-          required /></label
-      ><label class="a-field"
-        >Organisation<select v-model="form.organization">
-          <option v-for="org in organisations" :key="org.id">
-            {{ org.name }}
-          </option>
-        </select></label
-      ><label class="a-field"
-        >Rôle<select v-model="form.role">
-          <option>Membre</option>
-          <option>Administrateur</option>
-          <option>Propriétaire</option>
-        </select></label
-      >
-      <div class="a-form-footer">
-        <button type="button" class="a-button" @click="modal = false">
-          Annuler</button
-        ><button class="a-button a-button-primary">
-          {{ editing ? "Enregistrer" : "Simuler l’invitation" }}
-        </button>
-      </div>
-    </form></AdminModal
-  >
 </template>

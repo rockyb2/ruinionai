@@ -31,6 +31,7 @@ class UserRead(BaseModel):
     last_name: Optional[str] = None
     email: str
     is_active: Optional[bool] = None
+    is_super_admin: bool = False
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

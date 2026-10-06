@@ -64,9 +64,9 @@ const routes = [
   {
     path: '/admin',
     component: () => import('../layouts/DashAdminLayouts.vue'),
-    // Prévisualisation publique contenant uniquement des données fictives.
-    // Une autorisation serveur sera nécessaire avant de brancher des données réelles.
-    meta: { adminDemo: true },
+    // Le layout vérifie /admin/me avant de monter les vues. Les routes API
+    // appliquent également l'autorisation, indépendamment du navigateur.
+    meta: { requiresAuth: true },
     children: [
       {
         path: '',

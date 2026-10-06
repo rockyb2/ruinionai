@@ -1,418 +1,93 @@
 <script setup>
-import { computed, reactive, ref } from "vue";
-import {
-  AdminBadge,
-  AdminDetail,
-  AdminIcon,
-  AdminModal,
-  AdminPanel,
-  AdminStats,
-  AdminTable,
-} from "../../components/admin";
-import {
-  meetings,
-  organisations,
-  money,
-  duration,
-  sum,
-  notify,
-  exportFile,
-} from "../../admin/demo";
-import { useDemoSelection } from "../../admin/useDemoSelection";
-const selected = useDemoSelection(meetings),
-  tab = ref("Vue d’ensemble"),
-  modal = ref(false),
-  editing = ref(false);
-const form = reactive({ title: "", organization: "Ivoir Trips", duration: 60 });
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import AdminDetail from '../../components/admin/AdminDetail.vue'
+import AdminIcon from '../../components/admin/AdminIcon.vue'
+import AdminLookup from '../../components/admin/AdminLookup.vue'
+import AdminModal from '../../components/admin/AdminModal.vue'
+import AdminPanel from '../../components/admin/AdminPanel.vue'
+import AdminRemoteTable from '../../components/admin/AdminRemoteTable.vue'
+import AdminStats from '../../components/admin/AdminStats.vue'
+import { activeMeeting, audioDuration, dateLabel, stateName } from '../../admin/format'
+import { adminFile, adminList, adminRequest } from '../../service/admin'
+
+const route = useRoute(), router = useRouter()
+const rows = ref([]), total = ref(0), offset = ref(0), limit = 20, stats = ref({}), loading = ref(false)
+const query = ref(''), status = ref(''), error = ref(''), message = ref(''), selected = ref(null), tab = ref('Vue d’ensemble')
+const modal = ref(false), editing = ref(false), form = ref({ organization_id: '', title: '', transcription: '' })
+const audioUrl = ref('')
+let timer
 const columns = [
-  { key: "id", label: "#" },
-  { key: "title", label: "Titre" },
-  { key: "organization", label: "Organisation" },
-  { key: "date", label: "Date" },
-  { key: "duration", label: "Durée" },
-  { key: "cost", label: "Coût IA" },
-  { key: "status", label: "Statut" },
-];
-const stats = computed(() => [
-  {
-    label: "Total réunions",
-    value: meetings.length,
-    icon: "video",
-    color: "blue",
-    change: "↗ +22 %",
-  },
-  {
-    label: "Heures audio",
-    value: Math.round(sum(meetings, "duration") / 60) + " h",
-    icon: "clock",
-    color: "orange",
-    change: "↗ +15 %",
-  },
-  {
-    label: "Réunions réussies",
-    value: meetings.filter((m) => m.status === "Terminé").length,
-    icon: "success",
-    color: "green",
-    note: "Traitement terminé",
-  },
-  {
-    label: "Échecs",
-    value: meetings.filter((m) => m.status === "Erreur").length,
-    icon: "failure",
-    color: "red",
-    note: "À relancer",
-  },
-]);
-const transcription = [
-  {
-    time: "00:00",
-    text: "Bonjour à tous. Nous allons faire le point sur les objectifs de cette réunion.",
-  },
-  {
-    time: "00:24",
-    text: "Nous avons identifié trois priorités : améliorer le suivi client, finaliser le budget et coordonner les prochaines actions.",
-  },
-  {
-    time: "01:10",
-    text: "Le budget sera préparé par l’équipe financière. Chaque responsable transmettra ses besoins avant vendredi.",
-  },
-  {
-    time: "02:05",
-    text: "Nous validons le calendrier proposé. Le prochain point d’avancement est fixé à lundi.",
-  },
-];
-const transcriptSearch = ref("");
-const transcriptRows = computed(() =>
-  transcription.filter((row) =>
-    row.text
-      .toLocaleLowerCase("fr")
-      .includes(transcriptSearch.value.toLocaleLowerCase("fr")),
-  ),
-);
-const summary =
-  "L’équipe a défini les priorités du mois : suivi client, validation du budget et coordination des actions. Le calendrier a été approuvé. Les responsables transmettront leurs besoins avant vendredi ; un point de suivi aura lieu lundi.";
-function openForm(edit = false) {
-  editing.value = edit;
-  Object.assign(
-    form,
-    edit
-      ? selected.value
-      : { title: "", organization: organisations[0].name, duration: 60 },
-  );
-  modal.value = true;
+  { key: 'title', label: 'Réunion' }, { key: 'organization_name', label: 'Organisation' },
+  { key: 'created_by_name', label: 'Créée par' }, { key: 'date', label: 'Date', format: dateLabel },
+  { key: 'audio_duration', label: 'Durée', format: audioDuration },
+  { key: 'processing_status', label: 'Traitement', format: stateName },
+]
+const cards = computed(() => [
+  { label: 'Réunions', value: stats.value.total || 0, icon: 'video', color: 'blue', note: 'En base de données' },
+  { label: 'Heures audio', value: Math.round((stats.value.audio_seconds || 0) / 3600), icon: 'clock', color: 'orange', note: 'Durée réellement mesurée' },
+  { label: 'Terminées', value: stats.value.completed || 0, icon: 'success', color: 'green', note: 'Pipeline terminé' },
+  { label: 'Échecs', value: stats.value.failed || 0, icon: 'failure', color: 'red', note: 'À examiner ou relancer' },
+])
+async function load() {
+  loading.value = true; error.value = ''
+  try {
+    const data = await adminList('meetings', { q: query.value, status: status.value, offset: offset.value, limit })
+    rows.value = data.items; total.value = data.total; stats.value = data.stats
+    const requested = Number(route.query.id); if (requested && requested !== selected.value?.id) await select(requested)
+  } catch (e) { error.value = e.message } finally { loading.value = false }
 }
-function save() {
-  if (!form.title.trim()) return;
-  if (editing.value) Object.assign(selected.value, form);
-  else {
-    const meeting = {
-      ...form,
-      id: Math.max(...meetings.map((m) => m.id)) + 1,
-      date: "30/09/2026",
-      creator: "Charles Atta",
-      cost: 0,
-      status: "En cours",
-    };
-    meetings.unshift(meeting);
-    selected.value = meeting;
-  }
-  modal.value = false;
-  notify("Réunion de démonstration enregistrée.");
+function clearAudio() { if (audioUrl.value) URL.revokeObjectURL(audioUrl.value); audioUrl.value = '' }
+async function select(id) {
+  clearAudio(); error.value = ''
+  try {
+    selected.value = await adminRequest(`/meetings/${id}`); tab.value = 'Vue d’ensemble'; router.replace({ query: { ...route.query, id } })
+    if (selected.value.audio_available) {
+      try { audioUrl.value = URL.createObjectURL(await adminFile(id, 'audio')) } catch (e) { error.value = e.message }
+    }
+  } catch (e) { error.value = e.message }
 }
-function download(kind) {
-  exportFile(
-    `reunion-${selected.value.id}-${kind}-demo.${kind === "resume" ? "json" : "txt"}`,
-    kind === "resume"
-      ? JSON.stringify(
-          { title: selected.value.title, summary, demo: true },
-          null,
-          2,
-        )
-      : `DÉMONSTRATION — ${selected.value.title}\n\n${transcription.map((r) => r.time + " " + r.text).join("\n\n")}`,
-  );
-  notify("Exemple téléchargé. Aucun document réel n’est utilisé.");
+function closeDetail() { clearAudio(); selected.value = null; router.replace({ query: {} }) }
+function openCreate() { editing.value = false; form.value = { organization_id: '', title: '', transcription: '' }; modal.value = true }
+function openEdit() { editing.value = true; form.value = { title: selected.value.title, date: selected.value.date?.slice(0, 16) }; modal.value = true }
+async function save() {
+  try {
+    const body = { ...form.value }; if (body.date) body.date = new Date(body.date).toISOString()
+    const result = await adminRequest(editing.value ? `/meetings/${selected.value.id}` : '/meetings', { method: editing.value ? 'PATCH' : 'POST', body })
+    modal.value = false; message.value = editing.value ? 'Réunion modifiée.' : 'Réunion créée.'; await load(); await select(result.id)
+  } catch (e) { error.value = e.message }
 }
+async function retry() {
+  try { selected.value = await adminRequest(`/meetings/${selected.value.id}/summary`, { method: 'POST' }); message.value = 'Traitement placé en attente.'; await load() }
+  catch (e) { error.value = e.message }
+}
+async function downloadReport() {
+  try { const blob = await adminFile(selected.value.id, 'report'); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `compte-rendu-${selected.value.id}.docx`; a.click(); URL.revokeObjectURL(url) }
+  catch (e) { error.value = e.message }
+}
+async function remove() {
+  if (!confirm(`Supprimer définitivement la réunion « ${selected.value.title} » et ses fichiers ?`)) return
+  try { await adminRequest(`/meetings/${selected.value.id}`, { method: 'DELETE' }); closeDetail(); await load(); message.value = 'Réunion et fichiers associés supprimés.' }
+  catch (e) { error.value = e.message }
+}
+watch([query, status], () => { clearTimeout(timer); offset.value = 0; timer = setTimeout(load, 250) })
+onMounted(load); onBeforeUnmount(clearAudio)
 </script>
+
 <template>
-  <div class="a-toolbar">
-    <span class="a-muted">Activité de septembre 2026</span
-    ><button class="a-button a-button-primary" @click="openForm()">
-      <AdminIcon name="plus" :size="16" />Nouvelle réunion
-    </button>
+  <div class="a-stack">
+    <div class="a-toolbar"><div><strong>Réunions de toute la plateforme</strong><p class="a-muted">Transcriptions, résumés, documents et état du traitement</p></div><button class="a-button a-button-primary" @click="openCreate"><AdminIcon name="plus" />Nouvelle réunion</button></div>
+    <p v-if="error" class="a-card a-panel a-danger-text" role="alert">{{ error }}</p><p v-if="message" class="a-card a-panel a-success-text" role="status">{{ message }}</p>
+    <AdminStats :items="cards" />
+    <div class="a-split" :class="{ 'a-no-detail': !selected }"><div class="a-stack"><div class="a-filters a-card"><label class="a-search"><AdminIcon name="search" /><input v-model="query" type="search" placeholder="Titre ou organisation…" /></label><label class="a-field"><span>Traitement</span><select v-model="status"><option value="">Tous</option><option value="queued">En attente</option><option value="transcribing">Transcription</option><option value="writing">Rédaction</option><option value="building">Création du Word</option><option value="completed">Terminées</option><option value="failed">Échecs</option></select></label></div><AdminRemoteTable :rows="rows" :columns="columns" :total="total" :offset="offset" :limit="limit" :loading="loading" :selected-id="selected?.id" @page="value => { offset = value; load() }" @select="select" /></div>
+      <AdminDetail v-if="selected" v-model="tab" :title="selected.title" :subtitle="`${selected.organization_name} · ${dateLabel(selected.date)}`" :status="stateName(selected.processing_status)" :tabs="['Vue d’ensemble', 'Transcription', 'Résumé']" @close="closeDetail">
+        <AdminPanel v-if="tab === 'Vue d’ensemble'" title="Informations"><dl class="a-definition"><dt>Organisation</dt><dd><RouterLink :to="`/admin/organisations?id=${selected.organization_id}`">{{ selected.organization_name }}</RouterLink></dd><dt>Créée par</dt><dd>{{ selected.created_by_name }}</dd><dt>Date</dt><dd>{{ dateLabel(selected.date) }}</dd><dt>Durée audio</dt><dd>{{ audioDuration(selected.audio_duration) }}</dd><dt>Participants</dt><dd>{{ selected.participants || 'Non renseignés' }}</dd></dl><audio v-if="audioUrl" class="a-spaced" style="width:100%" :src="audioUrl" controls preload="metadata" /><p v-if="selected.processing_error" class="a-danger-text a-spaced">{{ selected.processing_error }}</p></AdminPanel>
+        <AdminPanel v-else-if="tab === 'Transcription'" title="Transcription complète"><p class="a-transcript-text">{{ selected.transcription || 'La transcription n’est pas encore disponible.' }}</p></AdminPanel>
+        <AdminPanel v-else title="Résultats"><h3>Résumé court</h3><p>{{ selected.summary_short || 'Non disponible.' }}</p><div class="a-divider" /><h3>Compte rendu détaillé</h3><p class="a-transcript-text">{{ selected.summary_long || 'Non disponible.' }}</p></AdminPanel>
+        <template #footer><button class="a-button a-button-danger" :disabled="activeMeeting(selected)" @click="remove"><AdminIcon name="trash" />Supprimer</button><button class="a-button" :disabled="activeMeeting(selected)" @click="openEdit"><AdminIcon name="edit" />Modifier</button><button class="a-button" :disabled="activeMeeting(selected) || !selected.has_source_audio" @click="retry"><AdminIcon name="refresh" />Relancer</button><button class="a-button a-button-primary" :disabled="!selected.has_report" @click="downloadReport"><AdminIcon name="download" />Word</button></template>
+      </AdminDetail></div>
+    <AdminModal :open="modal" :title="editing ? 'Modifier la réunion' : 'Nouvelle réunion'" hint="La création administrative peut partir d’une transcription existante. L’import audio reste disponible dans l’espace réunion." @close="modal = false"><form class="a-form" @submit.prevent="save"><AdminLookup v-if="!editing" v-model="form.organization_id" resource="organizations" label="Organisation" /><label class="a-field">Titre<input v-model="form.title" required maxlength="250" /></label><label v-if="editing" class="a-field">Date<input v-model="form.date" type="datetime-local" /></label><label v-else class="a-field">Transcription existante (facultatif)<textarea v-model="form.transcription" rows="8" maxlength="500000" /></label><div class="a-form-footer"><button type="button" class="a-button" @click="modal = false">Annuler</button><button class="a-button a-button-primary">Enregistrer</button></div></form></AdminModal>
   </div>
-  <AdminStats :items="stats" />
-  <div class="a-split" :class="{ 'a-no-detail': !selected }">
-    <AdminTable
-      :rows="meetings"
-      :columns="columns"
-      :tabs="['Terminé', 'En cours', 'Erreur']"
-      :filters="[{ key: 'organization', label: 'Organisation' }]"
-      :selected-id="selected?.id"
-      :page-size="10"
-      label="réunions"
-      search-placeholder="Rechercher une réunion…"
-      export-name="reunions-demo.csv"
-      @select="
-        selected = $event;
-        tab = 'Vue d’ensemble';
-      "
-      ><template #id="{ value }">#{{ value }}</template
-      ><template #duration="{ value }">{{ duration(value) }}</template
-      ><template #cost="{ value }">{{ money(value) }}</template
-      ><template #status="{ value }"><AdminBadge :value="value" /></template
-    ></AdminTable>
-    <AdminDetail
-      v-if="selected"
-      v-model="tab"
-      :title="`#${selected.id} — ${selected.title}`"
-      :subtitle="`${selected.organization} · ${selected.date} · ${duration(selected.duration)}`"
-      :status="selected.status"
-      :tabs="[
-        'Vue d’ensemble',
-        'Transcription',
-        'Résumé',
-        'Documents',
-        'Logs IA',
-      ]"
-      @close="selected = null"
-    >
-      <template v-if="tab === 'Vue d’ensemble'"
-        ><div class="a-grid a-grid-2">
-          <AdminPanel title="Informations générales"
-            ><template #action
-              ><button class="a-link" @click="openForm(true)">
-                <AdminIcon name="edit" :size="13" />Modifier
-              </button></template
-            >
-            <dl class="a-definition">
-              <dt>Titre</dt>
-              <dd>{{ selected.title }}</dd>
-              <dt>Organisation</dt>
-              <dd>{{ selected.organization }}</dd>
-              <dt>Créée par</dt>
-              <dd>{{ selected.creator }}</dd>
-              <dt>Date</dt>
-              <dd>{{ selected.date }} · 10:14</dd>
-              <dt>Durée</dt>
-              <dd>{{ duration(selected.duration) }}</dd>
-              <dt>Langue</dt>
-              <dd>Français</dd>
-              <dt>Participants</dt>
-              <dd>8 participants</dd>
-            </dl></AdminPanel
-          ><AdminPanel title="Coût et modèles"
-            ><div class="a-toolbar">
-              <span class="a-muted">Coût total</span
-              ><strong>{{ money(selected.cost) }}</strong>
-            </div>
-            <div class="a-divider" />
-            <dl class="a-definition">
-              <dt>Transcription</dt>
-              <dd>{{ money(selected.cost * 0.59) }}</dd>
-              <dt>Résumé</dt>
-              <dd>{{ money(selected.cost * 0.41) }}</dd>
-            </dl>
-            <div class="a-divider" />
-            <h3>Modèles utilisés</h3>
-            <div class="a-list">
-              <div class="a-list-item">
-                <span class="a-icon-tile blue"
-                  ><AdminIcon name="audio" :size="16"
-                /></span>
-                <div>Voxtral Mini<small>Transcription</small></div>
-              </div>
-              <div class="a-list-item">
-                <span class="a-icon-tile purple"
-                  ><AdminIcon name="cpu" :size="16"
-                /></span>
-                <div>Mistral Large<small>Résumé et compte rendu</small></div>
-              </div>
-            </div></AdminPanel
-          >
-        </div>
-        <div class="a-grid a-grid-2">
-          <AdminPanel title="Étapes du traitement"
-            ><template #action
-              ><AdminBadge :value="selected.status"
-            /></template>
-            <ol class="a-timeline">
-              <li
-                v-for="(step, i) in [
-                  'Import de l’audio',
-                  'Transcription (Voxtral)',
-                  'Rédaction du résumé',
-                  'Validation et enregistrement',
-                  'Création du document Word',
-                ]"
-                :key="step"
-              >
-                <span
-                  class="a-step"
-                  :class="selected.status === 'Erreur' && i === 2 ? 'red' : ''"
-                  >{{ i + 1 }}</span
-                >
-                <div>
-                  <strong>{{ step }}</strong
-                  ><small>{{
-                    selected.status === "Terminé" || i < 2
-                      ? "Terminé"
-                      : selected.status === "Erreur" && i === 2
-                        ? "Échec · modèle indisponible"
-                        : "En attente"
-                  }}</small>
-                </div>
-              </li>
-            </ol>
-            <button
-              v-if="selected.status === 'Erreur'"
-              class="a-button a-button-primary"
-              @click="
-                selected.status = 'En cours';
-                notify('Relance simulée : la réunion passe en cours.');
-              "
-            >
-              <AdminIcon name="refresh" :size="14" />Simuler une relance
-            </button></AdminPanel
-          ><AdminPanel title="Fichiers et résultats"
-            ><button
-              v-for="file in [
-                { name: 'Transcription', kind: 'transcription', ext: 'TXT' },
-                { name: 'Résumé structuré', kind: 'resume', ext: 'JSON' },
-              ]"
-              :key="file.kind"
-              class="a-file-item a-button-wide"
-              @click="download(file.kind)"
-            >
-              <span class="a-icon-tile small blue"
-                ><AdminIcon name="file" :size="16"
-              /></span>
-              <div>
-                <strong>{{ file.name }}</strong
-                ><small>Exemple · {{ file.ext }}</small>
-              </div>
-              <AdminIcon name="download" :size="15" />
-            </button>
-            <p class="a-note a-spaced">
-              L’audio, le Word et le PDF seront accessibles lors du raccordement
-              aux données réelles.
-            </p>
-            <button
-              class="a-button a-button-wide a-spaced"
-              @click="tab = 'Logs IA'"
-            >
-              Consulter les logs d’exemple
-            </button></AdminPanel
-          >
-        </div></template
-      >
-      <AdminPanel
-        v-else-if="tab === 'Transcription'"
-        title="Transcription de démonstration"
-        ><label class="a-search"
-          ><AdminIcon name="search" :size="16" /><input
-            v-model="transcriptSearch"
-            placeholder="Rechercher dans le texte…"
-            aria-label="Rechercher dans le texte"
-        /></label>
-        <div v-for="row in transcriptRows" :key="row.time" class="a-list-item">
-          <AdminBadge :value="row.time" color="blue" />
-          <p>{{ row.text }}</p>
-        </div>
-        <p v-if="!transcriptRows.length" class="a-empty">
-          Aucun passage trouvé.
-        </p></AdminPanel
-      >
-      <AdminPanel v-else-if="tab === 'Résumé'" title="Résumé de la réunion"
-        ><p>{{ summary }}</p>
-        <div class="a-divider" />
-        <h3>Décisions prises</h3>
-        <ul class="a-check-list a-spaced">
-          <li>
-            <AdminIcon name="success" :size="15" />Calendrier de travail
-            approuvé.
-          </li>
-          <li>
-            <AdminIcon name="success" :size="15" />Budget à finaliser avant
-            vendredi.
-          </li>
-        </ul>
-        <div class="a-divider" />
-        <h3>Prochaines actions</h3>
-        <p class="a-muted a-spaced">
-          Chaque responsable partage ses besoins. L’équipe se retrouve lundi
-          pour mesurer l’avancement.
-        </p></AdminPanel
-      >
-      <AdminPanel
-        v-else-if="tab === 'Documents'"
-        title="Télécharger les exemples"
-        ><button
-          class="a-button a-button-wide"
-          @click="download('transcription')"
-        >
-          <AdminIcon name="download" :size="15" />Transcription (.txt)</button
-        ><button
-          class="a-button a-button-wide a-spaced"
-          @click="download('resume')"
-        >
-          <AdminIcon name="download" :size="15" />Résumé (.json)
-        </button>
-        <p class="a-note a-spaced">
-          Les documents de cette vue sont fictifs.
-        </p></AdminPanel
-      >
-      <AdminPanel v-else title="Journal IA de démonstration">
-        <pre class="a-log">
-10:14:00  AUDIO       Fichier reçu
-10:14:02  VOXTRAL     Transcription terminée
-10:14:09  MISTRAL     {{
-            selected.status === "Erreur"
-              ? "Échec de rédaction : service indisponible"
-              : "Résumé structuré reçu"
-          }}
-10:14:10  VALIDATION  {{
-            selected.status === "Terminé" ? "Contenu validé" : "En attente"
-          }}
-10:14:11  DOCUMENT    {{
-            selected.status === "Terminé" ? "Document prêt" : "En attente"
-          }}</pre>
-        <a
-          class="a-button a-button-primary a-spaced"
-          href="https://cloud.langfuse.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          >Ouvrir Langfuse<AdminIcon name="external" :size="14" /></a
-      ></AdminPanel>
-    </AdminDetail>
-  </div>
-  <AdminModal
-    :open="modal"
-    :title="
-      editing ? 'Modifier la réunion' : 'Nouvelle réunion de démonstration'
-    "
-    @close="modal = false"
-    ><form class="a-form" @submit.prevent="save">
-      <label class="a-field"
-        >Titre<input v-model="form.title" required maxlength="120" /></label
-      ><label class="a-field"
-        >Organisation<select v-model="form.organization">
-          <option v-for="org in organisations" :key="org.id">
-            {{ org.name }}
-          </option>
-        </select></label
-      ><label class="a-field"
-        >Durée (minutes)<input
-          v-model.number="form.duration"
-          type="number"
-          min="1"
-          max="480"
-          required
-      /></label>
-      <div class="a-form-footer">
-        <button type="button" class="a-button" @click="modal = false">
-          Annuler</button
-        ><button class="a-button a-button-primary">Enregistrer</button>
-      </div>
-    </form></AdminModal
-  >
 </template>
+
+<style scoped>.a-transcript-text { white-space: pre-wrap; line-height: 1.7; max-height: 52vh; overflow: auto; }</style>

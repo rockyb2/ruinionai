@@ -93,10 +93,10 @@ async function requestJson(response, fallbackMessage) {
   return response.json()
 }
 
-async function apiRequest(path, options = {}, fallbackMessage = 'Une erreur est survenue.') {
-  const { auth = true, body, headers = {}, ...fetchOptions } = options
+export async function apiRequest(path, options = {}, fallbackMessage = 'Une erreur est survenue.') {
+  const { auth = true, organization = true, body, headers = {}, ...fetchOptions } = options
   const requestHeaders = {
-    ...(auth ? getOrganizationHeaders() : {}),
+    ...(auth && organization ? getOrganizationHeaders() : {}),
     ...headers,
   }
 
