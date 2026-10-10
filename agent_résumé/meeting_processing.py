@@ -14,6 +14,11 @@ from database import SessionLocal
 from meeting_content import configured_models
 from models import Meeting
 
+from meeting_crypto import (
+    decrypt_meeting_value,
+    encrypt_meeting_values,
+)
+
 logger = logging.getLogger(__name__)
 RUNNING = ("preparing", "transcribing", "writing", "building")
 ACTIVE = ("queued", *RUNNING)
@@ -103,11 +108,40 @@ def claim_next(session_factory=SessionLocal):
 
 def save_owned(meeting_id, token, values, session_factory=SessionLocal):
     with session_factory() as db:
-        count = db.execute(update(Meeting).where(Meeting.id == meeting_id, Meeting.processing_token == token,
-                                               Meeting.processing_status.in_(RUNNING)).values(**values)).rowcount
+        organization_id = (
+            db.query(Meeting.organization_id)
+            .filter(
+                Meeting.id == meeting_id,
+                Meeting.processing_token == token,
+                Meeting.processing_status.in_(RUNNING),
+            )
+            .scalar()
+        )
+        
+        if organization_id is None:
+            raise StageError("Ce traitement n'est plus actif.")
+        
+        protected_values = encrypt_meeting_values(
+            organization_id=organization_id,
+            meeting_id=meeting_id,
+            values=values,
+        )
+        
+        count = db.execute(
+            update(Meeting)
+            .where(
+                Meeting.id == meeting_id,
+                Meeting.processing_token == token,
+                Meeting.processing_status.in_(RUNNING),
+            )
+            .values(**protected_values)
+        ).rowcount
+        
         db.commit()
+        
         if count != 1:
             raise StageError("Ce traitement n’est plus actif.")
+
 
 
 async def process_claim(meeting_id, token, session_factory=SessionLocal, runner=run_stage):
@@ -117,15 +151,50 @@ async def process_claim(meeting_id, token, session_factory=SessionLocal, runner=
                 meeting = db.get(Meeting, meeting_id)
                 if not meeting or meeting.processing_token != token or meeting.processing_status not in RUNNING:
                     return
+                
                 stage = meeting.processing_status
-                context = {"title": meeting.title, "organization": meeting.organization.name,
-                           "participants": meeting.participants or "Non précisé",
-                           "date": (meeting.date or meeting.created_at).strftime("%d/%m/%Y %H:%M"),
-                           "transcription": meeting.transcription}
-                payload = {"stage": stage, "meeting_id": meeting_id, "token": token, "context": context,
-                           "audio_manifest": meeting.audio_manifest, "audio_path": meeting.audio_path,
-                           "audio_duration": meeting.audio_duration,
-                           "summary_short": meeting.summary_short, "summary_long": meeting.summary_long}
+
+                transcription = decrypt_meeting_value(
+                    meeting,
+                    "transcription",
+                    allow_legacy_plaintext=True,
+                )
+
+                summary_short = decrypt_meeting_value(
+                    meeting,
+                    "summary_short",
+                    allow_legacy_plaintext=True,
+                )
+
+                summary_long = decrypt_meeting_value(
+                    meeting,
+                    "summary_long",
+                    allow_legacy_plaintext=True,
+                )
+
+                context = {
+                    "title": meeting.title,
+                    "organization": meeting.organization.name,
+                    "participants": meeting.participants or "Non précisé",
+                    "date": (meeting.date or meeting.created_at).strftime(
+                        "%d/%m/%Y %H:%M"
+                    ),
+                    "transcription": transcription,
+                }
+
+                payload = {
+                    "stage": stage,
+                    "meeting_id": meeting_id,
+                    "token": token,
+                    "context": context,
+                    "audio_manifest": meeting.audio_manifest,
+                    "audio_path": meeting.audio_path,
+                    "audio_duration": meeting.audio_duration,
+                    "summary_short": summary_short,
+                    "summary_long": summary_long,
+                }
+
+
             logger.info("Meeting %s: %s", meeting_id, stage)
             if stage == "writing":
                 models = configured_models()

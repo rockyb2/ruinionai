@@ -9,10 +9,11 @@ from pathlib import Path
 import tempfile
 import unittest
 from types import ModuleType, SimpleNamespace
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 os.environ.setdefault("DATABASE_URL", "sqlite://")
 os.environ.setdefault("SECRET_KEY", "pipeline-tests-only-not-a-production-secret-key")
+os.environ["LANGFUSE_TRACING_ENABLED"] = "false"
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
@@ -23,7 +24,8 @@ from database import Base, get_db
 from meeting_content import MeetingContent, configured_models, generate_content
 from meeting_processing import claim_next, process_claim, recover_expired, run_stage, save_owned, stage_timeout, StageError
 from models import Meeting, Organization, OrganizationMember, User
-from processing_task import _transcribe_recording, execute
+from observability import sanitized_observation
+from processing_task import _transcribe_recording, build_safe_trace_output, execute
 from routes.meetings import router
 
 CONTENT = {
@@ -248,6 +250,45 @@ class MeetingPipelineTests(unittest.TestCase):
 
 
 class ModelBoundaryTests(unittest.TestCase):
+    def test_raw_provider_exception_is_not_forwarded_to_trace_context(self):
+        observation = Mock()
+
+        class RecordingContext:
+            exit_exception_type = object()
+
+            def __enter__(self):
+                return observation
+
+            def __exit__(self, exception_type, _exception, _traceback):
+                self.exit_exception_type = exception_type
+                return False
+
+        context = RecordingContext()
+        with self.assertRaisesRegex(ValueError, "réponse privée"):
+            with sanitized_observation(context, "Erreur fournisseur nettoyée"):
+                raise ValueError("réponse privée du fournisseur")
+
+        self.assertIsNone(context.exit_exception_type)
+        trace_update = observation.update.call_args.kwargs
+        self.assertEqual(trace_update["status_message"], "Erreur fournisseur nettoyée")
+        self.assertNotIn("réponse privée", str(trace_update))
+
+    def test_stage_trace_outputs_contain_metrics_only(self):
+        transcription = build_safe_trace_output("transcribing", {
+            "transcription": "Conversation privée",
+            "transcription_segments": [{"text": "Conversation privée"}],
+        })
+        writing = build_safe_trace_output("writing", {
+            "summary_short": "Résumé privé",
+            "summary_long": "Compte rendu privé",
+        })
+        serialized = json.dumps({"transcription": transcription, "writing": writing})
+        self.assertNotIn("Conversation privée", serialized)
+        self.assertNotIn("Résumé privé", serialized)
+        self.assertNotIn("Compte rendu privé", serialized)
+        self.assertEqual(transcription["segment_count"], 1)
+        self.assertEqual(writing["summary_short_characters"], len("Résumé privé"))
+
     def test_long_transcription_timeout_scales_by_ten_minute_chunks(self):
         self.assertEqual(stage_timeout("transcribing", 60), 120)
         self.assertEqual(stage_timeout("transcribing", 2469), 480)
@@ -310,6 +351,46 @@ class ModelBoundaryTests(unittest.TestCase):
              patch.dict(sys.modules, {"litellm": fake_litellm}):
             self.assertEqual(generate_content({"transcription": "Awa envoie le planning."}, "mistral/mistral-small-2603"), SUMMARIES)
         self.assertEqual(completion.call_args.kwargs["response_format"], {"type": "json_object"})
+
+    def test_langfuse_receives_token_usage_but_not_meeting_content(self):
+        answer = SimpleNamespace(
+            choices=[SimpleNamespace(
+                finish_reason="stop",
+                message=SimpleNamespace(content=json.dumps(CONTENT, ensure_ascii=False)),
+            )],
+            usage=SimpleNamespace(prompt_tokens=120, completion_tokens=80, total_tokens=200),
+        )
+        completion = Mock(return_value=answer)
+        fake_litellm = ModuleType("litellm")
+        fake_litellm.completion = completion
+        generation = MagicMock()
+        observation_context = MagicMock()
+        observation_context.__enter__.return_value = generation
+        langfuse = MagicMock()
+        langfuse.start_as_current_observation.return_value = observation_context
+        private_context = {
+            "title": "Acquisition strictement confidentielle",
+            "organization": "Entreprise secrète",
+            "participants": "Alice, Bob",
+            "transcription": "Le projet secret sera signé demain.",
+        }
+
+        with patch.dict(os.environ, {"MISTRAL_API_KEY": "test-only-key"}, clear=True), \
+             patch.dict(sys.modules, {"litellm": fake_litellm}), \
+             patch("langfuse.get_client", return_value=langfuse):
+            result = generate_content(private_context, "mistral/mistral-small-2603")
+
+        self.assertEqual(result, SUMMARIES)
+        trace_arguments = langfuse.start_as_current_observation.call_args.kwargs
+        updates = [call.kwargs for call in generation.update.call_args_list]
+        serialized_trace = str({"start": trace_arguments, "updates": updates})
+        for private_value in private_context.values():
+            self.assertNotIn(private_value, serialized_trace)
+        self.assertEqual(updates[0]["usage_details"], {
+            "input": 120,
+            "output": 80,
+            "total": 200,
+        })
 
     def test_timeout_kills_process_and_waits_for_exit(self):
         class SlowProcess:

@@ -3,6 +3,7 @@ import math
 import os
 
 from mistralai.client import Mistral
+from observability import sanitized_observation
 
 MAX_CONSECUTIVE_REPEATS = 2
 
@@ -63,24 +64,25 @@ def transcribe_audio_with_segments(audio_bytes: bytes, file_name: str, content_t
         "voxtral-mini-latest",
     )
 
-    with langfuse.start_as_current_observation(
-        as_type="generation",
-        name="transcription-audio",
-        model=model,
-        input={
-            "file_name": file_name or "note-vocale.mp3",
-            "content_type": content_type or "audio/mpeg",
-            "audio_size_bytes": len(audio_bytes),
-            "expected_duration_seconds": expected_duration,
-        },
-        model_parameters={
-            "timestamp_granularity": "segment",
-            "timeout_ms": 85000,
-        },
-        metadata={
-            "provider": "mistral",
-            "feature": "audio-transcription",
-        },
+    with sanitized_observation(
+        langfuse.start_as_current_observation(
+            as_type="generation",
+            name="transcription-audio",
+            model=model,
+            input={
+                "audio_size_bytes": len(audio_bytes),
+                "expected_duration_seconds": expected_duration,
+            },
+            model_parameters={
+                "timestamp_granularity": "segment",
+                "timeout_ms": 85000,
+            },
+            metadata={
+                "provider": "mistral",
+                "feature": "audio-transcription",
+            },
+        ),
+        "La transcription audio a échoué.",
     ) as generation:
         response = client.audio.transcriptions.complete(
             model=model,
@@ -138,9 +140,9 @@ def transcribe_audio_with_segments(audio_bytes: bytes, file_name: str, content_t
                 billed_seconds = max(valid_ends)
 
         generation.update(
-            
             output={
-                "transcription": text,
+                "status": "completed",
+                "transcription_characters": len(text),
                 "segment_count": len(segments),
             },
             usage_details={

@@ -112,12 +112,39 @@ def safe_error(error, stage):
         return "Le fournisseur IA n’a pas répondu dans le délai autorisé."
     if "connect" in name:
         return "Connexion au fournisseur IA impossible. Vérifiez la connexion du serveur."
-    if isinstance(error, ValueError) and (str(error).startswith("Configuration manquante :") or stage in ("preparing", "building")):
+    if isinstance(error, ValueError) and str(error).startswith("Configuration manquante :"):
         return str(error)[:300]
     return {"preparing": "L’audio est illisible ou son assemblage a échoué.",
             "transcribing": "La transcription a échoué ou est vide. Vérifiez l’enregistrement puis réessayez.",
             "writing": "La rédaction a échoué ou le modèle a renvoyé une réponse incomplète.",
             "building": "La création du Word a échoué. Les résumés sont conservés."}[stage]
+
+
+def build_safe_trace_output(stage, value):
+    """Return operational metrics without meeting content or storage paths."""
+    if stage == "preparing":
+        return {
+            "status": "completed",
+            "audio_duration_seconds": value.get("audio_duration"),
+        }
+    if stage == "transcribing":
+        return {
+            "status": "completed",
+            "transcription_characters": len(value.get("transcription") or ""),
+            "segment_count": len(value.get("transcription_segments") or []),
+        }
+    if stage == "writing":
+        return {
+            "status": "completed",
+            "summary_short_characters": len(value.get("summary_short") or ""),
+            "summary_long_characters": len(value.get("summary_long") or ""),
+        }
+    if stage == "building":
+        return {
+            "status": "completed",
+            "document_created": bool(value.get("report_path")),
+        }
+    return {"status": "completed"}
 
 
 if __name__ == "__main__":
@@ -127,7 +154,7 @@ if __name__ == "__main__":
 
     # L’import est volontairement placé ici. Les variables Langfuse sont déjà
     # disponibles dans l’environnement du sous-processus.
-    from langfuse import get_client
+    from langfuse import get_client, propagate_attributes
 
     langfuse = get_client()
 
@@ -148,8 +175,7 @@ if __name__ == "__main__":
         "building": "creation-document-word",
     }
 
-    # On évite de dupliquer toute la transcription dans l’entrée du span.
-    # Elle est déjà enregistrée dans la génération Langfuse.
+    # Langfuse receives only operational measurements, never meeting content.
     context = payload.get("context") or {}
     transcription = context.get("transcription") or ""
 
@@ -157,64 +183,71 @@ if __name__ == "__main__":
         "meeting_id": meeting_id,
         "stage": stage,
         "model": payload.get("model"),
-        "audio_duration": payload.get("audio_duration"),
+        "audio_duration_seconds": payload.get("audio_duration"),
         "transcription_characters": len(transcription),
     }
 
     try:
-        with langfuse.start_as_current_observation(
-            trace_context={
-                "trace_id": trace_id,
-            },
-            as_type="span",
-            name=stage_names.get(stage, stage),
-            input=trace_input,
+        # One session groups every stage and retry for the same meeting. Costs
+        # can therefore be aggregated by session_id in Langfuse.
+        with propagate_attributes(
+            trace_name="meeting-processing",
+            session_id=f"meeting:{meeting_id}",
             metadata={
-                "meeting_id": meeting_id,
-                "processing_token": processing_token,
-                "stage": stage,
-                "model": payload.get("model"),
+                "meeting_id": str(meeting_id),
             },
-        ) as stage_observation:
-            try:
-                value = execute(payload)
+            tags=["meeting-processing"],
+        ):
+            with langfuse.start_as_current_observation(
+                trace_context={
+                    "trace_id": trace_id,
+                },
+                as_type="span",
+                name=stage_names.get(stage, stage),
+                input=trace_input,
+                metadata={
+                    "meeting_id": meeting_id,
+                    "stage": stage,
+                    "model": payload.get("model"),
+                },
+            ) as stage_observation:
+                try:
+                    value = execute(payload)
 
-                stage_observation.update(
-                    output=value,
-                    metadata={
-                        "meeting_id": meeting_id,
-                        "stage": stage,
-                        "model": payload.get("model"),
-                        "status": "completed",
-                    },
-                )
+                    stage_observation.update(
+                        output=build_safe_trace_output(stage, value),
+                        metadata={
+                            "meeting_id": meeting_id,
+                            "stage": stage,
+                            "model": payload.get("model"),
+                            "status": "completed",
+                        },
+                    )
 
-                result = {
-                    "result": value,
-                }
+                    result = {
+                        "result": value,
+                    }
 
-            except Exception as error:
-                # Le message technique est visible dans Langfuse.
-                stage_observation.update(
-                    level="ERROR",
-                    status_message=str(error),
-                    output={
-                        "status": "failed",
-                        "error_type": type(error).__name__,
-                    },
-                    metadata={
-                        "meeting_id": meeting_id,
-                        "stage": stage,
-                        "model": payload.get("model"),
-                        "status": "failed",
-                    },
-                )
+                except Exception as error:
+                    safe_message = safe_error(error, stage)
+                    stage_observation.update(
+                        level="ERROR",
+                        status_message=safe_message,
+                        output={
+                            "status": "failed",
+                            "error_type": type(error).__name__,
+                        },
+                        metadata={
+                            "meeting_id": meeting_id,
+                            "stage": stage,
+                            "model": payload.get("model"),
+                            "status": "failed",
+                        },
+                    )
 
-                # L’application reçoit toujours le message sécurisé produit
-                # par safe_error().
-                result = {
-                    "error": safe_error(error, stage),
-                }
+                    result = {
+                        "error": safe_message,
+                    }
 
     finally:
         # Le sous-processus va se fermer : il faut terminer l’envoi.

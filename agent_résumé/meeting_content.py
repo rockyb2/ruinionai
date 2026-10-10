@@ -6,6 +6,7 @@ import re
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, StringConstraints
+from observability import sanitized_observation
 
 NonEmptyText = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60000)
@@ -152,22 +153,26 @@ def generate_content(context, model):
     ]
 
     try:
-        with langfuse.start_as_current_observation(
-            as_type="generation",
-            name="generation-compte-rendu",
-            model=model,
-            input=messages,
-            model_parameters={
-                "max_tokens": 3000,
-                "timeout": 25,
-                "temperature": 0,
-                "json_mode": supports_json_mode,
-            },
-            metadata={
-                "feature": "meeting-summary",
-                "meeting_title": context.get("title"),
-                "organization": context.get("organization"),
-            },
+        with sanitized_observation(
+            langfuse.start_as_current_observation(
+                as_type="generation",
+                name="generation-compte-rendu",
+                model=model,
+                input={
+                    "transcription_characters": len(context.get("transcription") or ""),
+                    "context_field_count": len(context),
+                },
+                model_parameters={
+                    "max_tokens": 3000,
+                    "timeout": 25,
+                    "temperature": 0,
+                    "json_mode": supports_json_mode,
+                },
+                metadata={
+                    "feature": "meeting-summary",
+                },
+            ),
+            "La génération du compte rendu a échoué.",
         ) as generation:
             response = completion(
                 model=model,
@@ -201,11 +206,13 @@ def generate_content(context, model):
                 if total_tokens is not None:
                     usage_details["total"] = total_tokens
 
-            # On enregistre la réponse avant sa validation. Ainsi, si le JSON
-            # est incorrect, tu pourras voir dans Langfuse ce que le modèle
-            # avait réellement renvoyé.
+            # Keep only operational metrics in Langfuse. The response body may
+            # contain the summary, transcript excerpts or participant data.
             update_values = {
-                "output": content,
+                "output": {
+                    "status": "received",
+                    "response_characters": len(content),
+                },
                 "metadata": {
                     "finish_reason": choice.finish_reason,
                     "response_validated": False,
@@ -234,7 +241,11 @@ def generate_content(context, model):
 
             # La validation Pydantic a réussi.
             generation.update(
-                output=result,
+                output={
+                    "status": "completed",
+                    "summary_short_characters": len(result["summary_short"]),
+                    "summary_long_characters": len(result["summary_long"]),
+                },
                 metadata={
                     "finish_reason": choice.finish_reason,
                     "response_validated": True,

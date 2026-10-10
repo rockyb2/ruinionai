@@ -68,7 +68,6 @@ class MembershipInput(AdminInput):
 class MeetingCreate(AdminInput):
     organization_id: PositiveInt
     title: str = Field(min_length=1, max_length=250)
-    transcription: str = Field(default="", max_length=500_000)
 
 
 class MeetingUpdate(AdminInput):

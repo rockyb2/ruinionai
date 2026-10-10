@@ -22,6 +22,8 @@ services:
     build: ./agent_résumé
     
     environment: 
+      MEETING_ENCRYPTION_ACTIVE_KEY_ID: ${MEETING_ENCRYPTION_ACTIVE_KEY_ID:?MEETING_ENCRYPTION_ACTIVE_KEY_ID is not set}
+      MEETING_ENCRYPTION_KEY_V1: ${MEETING_ENCRYPTION_KEY_V1:?MEETING_ENCRYPTION_KEY_V1 is not set}
       DATABASE_URL: postgresql+psycopg://ruinionai:${POSTGRES_PASSWORD}@db:5432/ruinionai
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is not set in .env file}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}

@@ -2,7 +2,9 @@
 import os
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+
+os.environ["LANGFUSE_TRACING_ENABLED"] = "false"
 
 from transcrib2 import transcribe_audio
 from transcription_service import clean_transcription_segments, transcribe_audio_with_segments
@@ -67,6 +69,31 @@ class MistralTranscriptionTests(unittest.TestCase):
         )
         result = transcribe_audio_with_segments(b"audio", "test.mp3", "audio/mpeg", expected_duration=10)
         self.assertEqual(result["transcription"], "Texte réel")
+
+    @patch.dict(os.environ, {"MISTRAL_API_KEY": "test-only-key", "MISTRAL_AUDIO_MODEL": "voxtral-mini-latest"})
+    @patch("transcription_service.Mistral")
+    def test_langfuse_receives_usage_but_not_transcription_or_filename(self, client_class):
+        client_class.return_value.audio.transcriptions.complete.return_value = SimpleNamespace(
+            segments=[SimpleNamespace(start=0, end=10, text="Projet strictement confidentiel")],
+        )
+        generation = MagicMock()
+        observation_context = MagicMock()
+        observation_context.__enter__.return_value = generation
+        langfuse = MagicMock()
+        langfuse.start_as_current_observation.return_value = observation_context
+
+        with patch("langfuse.get_client", return_value=langfuse):
+            result = transcribe_audio_with_segments(
+                b"audio-secret", "client-confidentiel.mp3", "audio/mpeg", expected_duration=10,
+            )
+
+        self.assertEqual(result["transcription"], "Projet strictement confidentiel")
+        trace_input = langfuse.start_as_current_observation.call_args.kwargs["input"]
+        updates = [call.kwargs for call in generation.update.call_args_list]
+        serialized_trace = str({"input": trace_input, "updates": updates})
+        self.assertNotIn("Projet strictement confidentiel", serialized_trace)
+        self.assertNotIn("client-confidentiel.mp3", serialized_trace)
+        self.assertEqual(updates[-1]["usage_details"]["seconds"], 10)
 
 
 if __name__ == "__main__":

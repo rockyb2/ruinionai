@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 from starlette.concurrency import run_in_threadpool
 from sqlalchemy import func, or_, update
 from sqlalchemy.orm import Session, joinedload
-
+from meeting_crypto import decrypt_meeting_content
 from auth.dependencies import AuthContext, get_auth_context
 from audio_processing import AudioValidationError, MAX_AUDIO_BYTES, MAX_AUDIO_SEGMENTS, audio_input_format
 from database import get_db
@@ -38,6 +38,45 @@ def get_meeting_for_current_org(
     return db_meeting
 
 
+def meeting_read_data(
+    meeting: Meeting,
+    *,
+    allow_legacy_plaintext: bool = True,
+) -> MeetingRead:
+    """
+    Prépare une réunion pour l'API utilisateur.
+
+    Le contrôle d'accès à l'organisation doit avoir été effectué avant
+    d'appeler cette fonction.
+    """
+    private_content = decrypt_meeting_content(
+        meeting,
+        allow_legacy_plaintext=allow_legacy_plaintext,
+    )
+
+    return MeetingRead(
+        id=meeting.id,
+        organization_id=meeting.organization_id,
+        created_by_user_id=meeting.created_by_user_id,
+        title=meeting.title,
+        transcription=private_content["transcription"],
+        participants=meeting.participants,
+        participant_member_ids=meeting.participant_member_ids,
+        summary=private_content["summary_long"],
+        summary_short=private_content["summary_short"],
+        summary_long=private_content["summary_long"],
+        report_path=meeting.report_path,
+        audio_available=meeting.audio_available,
+        has_source_audio=meeting.has_source_audio,
+        audio_duration=meeting.audio_duration,
+        transcription_segments=private_content["transcription_segments"],
+        processing_status=meeting.processing_status,
+        processing_error=meeting.processing_error,
+        date=meeting.date,
+        created_at=meeting.created_at,
+        updated_at=meeting.updated_at,
+    )
+
 def resolve_report_path(report_path: str | None) -> Path:
     if not report_path:
         raise HTTPException(status_code=404, detail="Le compte rendu n’a pas encore été généré.")
@@ -56,12 +95,17 @@ def list_meetings(
     db: Session = Depends(get_db),
     auth_context: AuthContext = Depends(get_auth_context),
 ):
-    return (
+    meetings = (
         db.query(Meeting)
-        .filter(Meeting.organization_id == auth_context.membership.organization_id)
+        .filter(
+            Meeting.organization_id
+            == auth_context.membership.organization_id
+        )
         .order_by(Meeting.created_at.desc(), Meeting.id.desc())
         .all()
     )
+
+    return [meeting_read_data(meeting) for meeting in meetings]
 
 
 @router.post("/meetings/", response_model=MeetingRead)
@@ -114,7 +158,7 @@ def create_meeting(
     except Exception:
         db.rollback()
         raise
-    return db_meeting
+    return meeting_read_data(db_meeting)
 
 
 def member_name(user: User) -> str:
@@ -156,7 +200,13 @@ def read_meeting(
     db: Session = Depends(get_db),
     auth_context: AuthContext = Depends(get_auth_context),
 ):
-    return get_meeting_for_current_org(meeting_id, db, auth_context)
+    meeting = get_meeting_for_current_org(
+        meeting_id,
+        db,
+        auth_context,
+    )
+
+    return meeting_read_data(meeting)
 
 
 @router.post("/meetings/{meeting_id}/audio", response_model=MeetingRead, status_code=202)
@@ -178,7 +228,7 @@ async def upload_audio(
             raise HTTPException(400, "Un enregistrement ne peut pas dépasser 100 parties.")
         # An HTTP retry reuses the persisted source and its existing task.
         if meeting.has_source_audio:
-            return meeting
+            return meeting_read_data(meeting)
         if meeting.transcription or meeting.processing_status in ACTIVE:
             raise HTTPException(409, "Cette réunion possède déjà une transcription. Créez une nouvelle réunion pour un autre audio.")
         directory = audio_directory() / f"org-{meeting.organization_id}" / f"meeting-{meeting.id}" / uuid4().hex
@@ -207,7 +257,7 @@ async def upload_audio(
         db.commit()
         saved = count == 1
         db.refresh(meeting)
-        return meeting
+        return meeting_read_data(meeting)
     except AudioValidationError as error:
         raise HTTPException(422, str(error)) from error
     finally:
@@ -227,8 +277,15 @@ def summarize_meeting(
     db: Session = Depends(get_db),
     auth_context: AuthContext = Depends(get_auth_context),
 ):
-    meeting = get_meeting_for_current_org(meeting_id, db, auth_context)
-    return enqueue_summary(meeting, response, db)
+    meeting = get_meeting_for_current_org(
+        meeting_id,
+        db,
+        auth_context,
+    )
+
+    queued_meeting = enqueue_summary(meeting, response, db)
+
+    return meeting_read_data(queued_meeting)
 
 
 def enqueue_summary(meeting: Meeting, response: Response, db: Session):
