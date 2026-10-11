@@ -25,7 +25,7 @@ async function verifyAccess() {
   } finally { loading.value = false }
 }
 async function logout() { await logoutUser(); await router.push({ name: 'login' }) }
-watch(() => route.path, () => { menuOpen.value = false; profileOpen.value = false; document.title = `${current.value.label} · Administration Ruinion AI` }, { immediate: true })
+watch(() => route.path, () => { menuOpen.value = false; profileOpen.value = false }, { immediate: true })
 onMounted(verifyAccess)
 </script>
 

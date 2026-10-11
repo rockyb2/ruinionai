@@ -38,6 +38,11 @@ const notificationsError = ref('')
 const user = computed(() => session.value?.user)
 const organization = computed(() => session.value?.organization)
 const role = computed(() => session.value?.role)
+const roleLabel = computed(() => ({
+  owner: 'Propriétaire',
+  admin: 'Administrateur',
+  member: 'Membre',
+})[role.value?.toLowerCase()] || 'Membre')
 const canSeeNotifications = computed(() => Boolean(organization.value))
 const canSyncTeamInvitations = computed(() => ['owner', 'admin'].includes(role.value))
 let notificationTimer
@@ -263,7 +268,7 @@ onBeforeUnmount(() => {
             <div class="absolute right-0 mt-3 w-64 rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
               <p class="truncate text-sm font-black text-slate-800">{{ userName }}</p>
               <p class="mt-1 truncate text-xs text-slate-500">{{ user?.email }}</p>
-              <p class="mt-3 text-xs font-black uppercase text-blue-600">{{ role }}</p>
+              <p class="mt-3 text-xs font-black uppercase text-blue-600">{{ roleLabel }}</p>
               <RouterLink class="mt-3 block rounded-lg px-3 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50" to="/setting">
                 Paramètres
               </RouterLink>
