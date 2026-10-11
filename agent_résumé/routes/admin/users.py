@@ -80,6 +80,9 @@ def update_user(user_id: int, payload: UserUpdate, db: Session = Depends(get_db)
         protect_account(db, user, actor)
     if "email" in values:
         values["email"] = str(values["email"]).lower()
+    if "is_active" in values and values["is_active"] != user.is_active:
+        # Une réactivation ne doit jamais rendre un ancien jeton valide.
+        user.token_version += 1
     for key, value in values.items():
         setattr(user, key, value)
     commit(db)
@@ -90,6 +93,9 @@ def update_user(user_id: int, payload: UserUpdate, db: Session = Depends(get_db)
 def reset_password(user_id: int, payload: PasswordUpdate, db: Session = Depends(get_db)):
     user = get_record(db, User, user_id, lock=True)
     user.password_hash = hash_password(payload.password)
+    user.token_version += 1
+    user.failed_login_attempts = 0
+    user.locked_until = None
     commit(db)
     return Response(status_code=204)
 

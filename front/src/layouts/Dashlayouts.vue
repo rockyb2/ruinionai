@@ -135,9 +135,9 @@ function submitSearch() {
   })
 }
 
-function handleLogout() {
-  logoutUser()
-  router.push('/login')
+async function handleLogout() {
+  await logoutUser()
+  await router.push('/login')
 }
 
 function handleOrganizationUpdated(event) {
@@ -164,7 +164,7 @@ async function loadLayout() {
   try {
     session.value = await getCurrentUser()
   } catch {
-    logoutUser()
+    await logoutUser()
     await router.push('/login')
     return
   }

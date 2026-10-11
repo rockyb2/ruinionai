@@ -1,5 +1,10 @@
 .env
 **/.env
-.git 
+.git
 storage/
 *.dump
+*.sql
+*.pem
+*.key
+secrets/
+backups/

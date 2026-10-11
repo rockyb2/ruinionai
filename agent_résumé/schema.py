@@ -228,14 +228,25 @@ class InvitationRegister(InvitationAccept):
 
 
 class RegisterRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     first_name: str = Field(..., min_length=1, max_length=100)
     last_name: str = Field(..., min_length=1, max_length=100)
-    email: str = Field(..., min_length=3, max_length=255)
+    email: EmailStr = Field(..., max_length=255)
     password: str = Field(..., min_length=8, max_length=128)
     organization_name: str = Field(..., min_length=1, max_length=150)
 
+    @field_validator("password")
+    @classmethod
+    def validate_password_bytes(cls, value: str) -> str:
+        if len(value.encode("utf-8")) > 72:
+            raise ValueError("Le mot de passe ne peut pas dépasser 72 octets.")
+        return value
+
 
 class LoginRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     email: str = Field(..., min_length=3, max_length=255)
     password: str = Field(..., min_length=1, max_length=128)
 

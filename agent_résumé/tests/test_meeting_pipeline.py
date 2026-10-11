@@ -23,6 +23,8 @@ from auth.dependencies import get_current_user
 from database import Base, get_db
 from meeting_content import MeetingContent, configured_models, generate_content
 from meeting_processing import claim_next, process_claim, recover_expired, run_stage, save_owned, stage_timeout, StageError
+from meeting_crypto import decrypt_meeting_value
+from cryptog.encryption_service import is_encrypted
 from models import Meeting, Organization, OrganizationMember, User
 from observability import sanitized_observation
 from processing_task import _transcribe_recording, build_safe_trace_output, execute
@@ -118,7 +120,11 @@ class MeetingPipelineTests(unittest.TestCase):
                 return SUMMARIES
             with self.sessions() as db:
                 saved = db.get(Meeting, 1)
-                self.assertEqual(saved.summary_short, SUMMARIES["summary_short"])
+                self.assertTrue(is_encrypted(saved.summary_short))
+                self.assertEqual(
+                    decrypt_meeting_value(saved, "summary_short"),
+                    SUMMARIES["summary_short"],
+                )
                 self.assertEqual(saved.processing_status, "building")
                 self.assertIsNone(saved.report_path)
             return execute(payload)

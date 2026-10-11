@@ -10,7 +10,7 @@ import '../admin/admin.css'
 
 const route = useRoute(), router = useRouter()
 const current = computed(() => navigation.find(item => item.path === route.path) || navigation[0])
-const connectedPages = ['/admin/organisations', '/admin/utilisateurs', '/admin/reunions']
+const connectedPages = ['/admin/organisations', '/admin/utilisateurs', '/admin/reunions', '/admin/audit']
 const isDemo = computed(() => !connectedPages.includes(route.path))
 const menuOpen = ref(false), profileOpen = ref(false), loading = ref(true), accessError = ref(''), admin = ref(null)
 const adminName = computed(() => [admin.value?.first_name, admin.value?.last_name].filter(Boolean).join(' ') || admin.value?.email || 'Administration')
@@ -24,7 +24,7 @@ async function verifyAccess() {
     if (error.status === 401) router.replace({ name: 'login', query: { redirect: route.fullPath } })
   } finally { loading.value = false }
 }
-function logout() { logoutUser(); router.push({ name: 'login' }) }
+async function logout() { await logoutUser(); await router.push({ name: 'login' }) }
 watch(() => route.path, () => { menuOpen.value = false; profileOpen.value = false; document.title = `${current.value.label} · Administration Ruinion AI` }, { immediate: true })
 onMounted(verifyAccess)
 </script>

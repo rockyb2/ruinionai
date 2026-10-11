@@ -3,7 +3,11 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response
 from sqlalchemy.orm import Session
 
-from auth.dependencies import AuthContext, get_auth_context, require_organization_admin
+from auth.dependencies import (
+    AuthContext,
+    get_member_organization_context,
+    require_organization_admin,
+)
 from database import get_db
 from models import OrganizationNotification
 from notification_service import (
@@ -60,7 +64,7 @@ def list_notifications(
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(get_member_organization_context),
 ):
     query = notifications_for_user(db, auth)
     unread_count = query.filter(
@@ -94,7 +98,7 @@ def mark_notification_read(
     response: Response,
     notification_id: int = Path(gt=0),
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(get_member_organization_context),
 ):
     notification = (
         notifications_for_user(db, auth)
@@ -118,7 +122,7 @@ def mark_notification_read(
 @router.post("/read-all", status_code=204)
 def mark_all_notifications_read(
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(get_member_organization_context),
 ):
     query = notifications_for_user(db, auth).filter(OrganizationNotification.read_at.is_(None))
     notification_ids = [item.id for item in query.all()]

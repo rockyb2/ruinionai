@@ -1,12 +1,13 @@
 from datetime import datetime
 from hashlib import sha256
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from auth.dependencies import get_current_user
+from auth.rate_limit import limiter
 from auth.security import create_access_token, hash_password
 from database import get_db
 from models import Organization, OrganizationInvitation, OrganizationMember, User
@@ -110,7 +111,7 @@ def join_organization(db, organization, invitation, user) -> AuthResponse:
 
     # Preparer la reponse avant le commit.
     return AuthResponse(
-        access_token=create_access_token(subject=str(user.id)),
+        access_token=create_access_token(str(user.id), user.token_version),
         user=UserRead.model_validate(user),
         organization=OrganizationRead.model_validate(organization),
         role=membership.role,
@@ -118,7 +119,9 @@ def join_organization(db, organization, invitation, user) -> AuthResponse:
 
 
 @router.post("/accept", response_model=AuthResponse)
+@limiter.limit("10/minute")
 def accept_invitation(
+    request: Request,
     payload: InvitationAccept,
     response: Response,
     db: Session = Depends(get_db),
@@ -147,7 +150,9 @@ def accept_invitation(
 
 
 @router.post("/register", response_model=AuthResponse, status_code=201)
+@limiter.limit("5/minute")
 def register_from_invitation(
+    request: Request,
     payload: InvitationRegister,
     response: Response,
     db: Session = Depends(get_db),

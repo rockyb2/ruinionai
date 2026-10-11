@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from auth.dependencies import (
     AuthContext,
-    get_auth_context,
+    get_member_organization_context,
     require_organization_admin,
     require_organization_owner,
 )
@@ -138,7 +138,7 @@ def update_member_status(
 @router.get("/settings", response_model=OrganizationSettingsRead)
 def get_organization_settings(
     response: Response,
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(get_member_organization_context),
 ):
     response.headers["Cache-Control"] = "no-store"
     return auth.membership.organization

@@ -5,6 +5,7 @@ from models import User
 from routes.admin.organisation_admin import router as organizations
 from routes.admin.users import router as users
 from routes.admin.meetings import router as meetings
+from routes.admin.audit import router as audit
 from schema import UserRead
 
 router = APIRouter(prefix="/admin", tags=["Administration"], dependencies=[Depends(require_platform_admin)])
@@ -20,3 +21,4 @@ def me(user: User = Depends(require_platform_admin)):
 router.include_router(organizations)
 router.include_router(users)
 router.include_router(meetings)
+router.include_router(audit)

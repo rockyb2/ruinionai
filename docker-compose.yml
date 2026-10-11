@@ -19,7 +19,11 @@ services:
     
 
   backend:
-    build: ./agent_résumé
+    build:
+      context: ./agent_résumé
+      args:
+        APP_UID: ${APP_UID:-1000}
+        APP_GID: ${APP_GID:-1000}
     
     environment: 
       MEETING_ENCRYPTION_ACTIVE_KEY_ID: ${MEETING_ENCRYPTION_ACTIVE_KEY_ID:?MEETING_ENCRYPTION_ACTIVE_KEY_ID is not set}
@@ -45,8 +49,21 @@ services:
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
       LANGFUSE_BASE_URL: ${LANGFUSE_BASE_URL}
       LANGFUSE_TRACING_ENVIRONMENT: ${LANGFUSE_TRACING_ENVIRONMENT:-production}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      PUBLIC_REGISTRATION_ENABLED: ${PUBLIC_REGISTRATION_ENABLED:-false}
+      RATE_LIMIT_STORAGE_URI: redis://redis:6379/0
       
     restart: unless-stopped
+    init: true
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
 
     command: >
       sh -c "alembic upgrade head &&
@@ -73,6 +90,26 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:7.4-alpine
+    user: redis
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /data:rw,noexec,nosuid,size=64m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
   frontend:
     build: ./front

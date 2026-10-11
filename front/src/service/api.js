@@ -154,8 +154,18 @@ export async function loginUser(data, remember = true) {
   return response
 }
 
-export function logoutUser() {
-  clearAuthToken()
+export async function logoutUser() {
+  try {
+    if (getAuthToken()) {
+      await apiRequest(
+        '/auth/logout',
+        { method: 'POST', organization: false },
+        'Impossible de fermer la session sur le serveur.',
+      )
+    }
+  } finally {
+    clearAuthToken()
+  }
 }
 
 export async function getCurrentUser() {

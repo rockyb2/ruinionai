@@ -25,6 +25,9 @@ class User(Base):
         default=False,
         server_default="false",
     )
+    token_version = Column(Integer, nullable=False, default=0, server_default="0")
+    failed_login_attempts = Column(Integer, nullable=False, default=0, server_default="0")
+    locked_until = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -349,3 +352,26 @@ class MeetingParticipant(Base):
     meeting_id = Column(Integer, ForeignKey("meetings.id", ondelete="CASCADE"), nullable=False, index=True)
     member_id = Column(Integer, ForeignKey("organization_members.id", ondelete="CASCADE"), nullable=False, index=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class AuditLog(Base):
+    """Journal append-only des actions de sécurité et d'administration."""
+
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True)
+    actor_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    action = Column(String(80), nullable=False, index=True)
+    target_type = Column(String(80), nullable=True, index=True)
+    target_id = Column(String(120), nullable=True)
+    method = Column(String(10), nullable=True)
+    path = Column(String(500), nullable=True)
+    status_code = Column(Integer, nullable=True)
+    ip_hash = Column(String(64), nullable=True, index=True)
+    details = Column(JSON, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)

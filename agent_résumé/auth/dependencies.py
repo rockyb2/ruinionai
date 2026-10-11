@@ -1,11 +1,11 @@
 from dataclasses import dataclass
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
+import jwt
 from sqlalchemy.orm import Session
 
-from auth.security import ALGORITHM, SECRET_KEY
+from auth.security import decode_access_token
 from database import get_db
 from models import OrganizationMember, User
 
@@ -20,6 +20,7 @@ class AuthContext:
 
 
 def get_current_user(
+    request: Request,
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ) -> User:
@@ -30,9 +31,12 @@ def get_current_user(
     )
 
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = decode_access_token(token)
+        if payload.get("typ") != "access":
+            raise jwt.InvalidTokenError("Type de jeton invalide.")
         user_id = int(payload.get("sub", ""))
-    except (JWTError, ValueError):
+        token_version = int(payload.get("ver", -1))
+    except (jwt.InvalidTokenError, ValueError, TypeError):
         raise credentials_error
 
     user = db.query(User).filter(User.id == user_id).first()
@@ -41,6 +45,11 @@ def get_current_user(
 
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Ce compte utilisateur est inactif.")
+
+    if token_version != user.token_version:
+        raise credentials_error
+
+    request.state.current_user_id = user.id
 
     return user
 
@@ -57,7 +66,7 @@ def require_platform_admin(
     return current_user
 
 
-def get_auth_context(
+def get_member_organization_context(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     organization_id: int | None = Header(
@@ -97,7 +106,7 @@ def get_auth_context(
 
 
 def require_organization_admin(
-    auth_context: AuthContext = Depends(get_auth_context),
+    auth_context: AuthContext = Depends(get_member_organization_context),
 ) -> AuthContext:
     if auth_context.membership.role not in ("owner", "admin"):
         raise HTTPException(
@@ -109,7 +118,7 @@ def require_organization_admin(
 
 
 def require_organization_owner(
-    auth_context: AuthContext = Depends(get_auth_context),
+    auth_context: AuthContext = Depends(get_member_organization_context),
 ) -> AuthContext:
     if auth_context.membership.role != "owner":
         raise HTTPException(

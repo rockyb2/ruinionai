@@ -7,7 +7,7 @@ from starlette.concurrency import run_in_threadpool
 from sqlalchemy import func, or_, update
 from sqlalchemy.orm import Session, joinedload
 from meeting_crypto import decrypt_meeting_content
-from auth.dependencies import AuthContext, get_auth_context
+from auth.dependencies import AuthContext, get_member_organization_context
 from audio_processing import AudioValidationError, MAX_AUDIO_BYTES, MAX_AUDIO_SEGMENTS, audio_input_format
 from database import get_db
 from meeting_processing import ACTIVE
@@ -93,7 +93,7 @@ def resolve_report_path(report_path: str | None) -> Path:
 @router.get("/meetings/", response_model=list[MeetingRead])
 def list_meetings(
     db: Session = Depends(get_db),
-    auth_context: AuthContext = Depends(get_auth_context),
+    auth_context: AuthContext = Depends(get_member_organization_context),
 ):
     meetings = (
         db.query(Meeting)
@@ -112,7 +112,7 @@ def list_meetings(
 def create_meeting(
     meeting: MeetingCreate,
     db: Session = Depends(get_db),
-    auth_context: AuthContext = Depends(get_auth_context),
+    auth_context: AuthContext = Depends(get_member_organization_context),
 ):
     organization_id = auth_context.membership.organization_id
     try:
@@ -172,7 +172,7 @@ def list_meeting_invitees(
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=100),
     db: Session = Depends(get_db),
-    auth_context: AuthContext = Depends(get_auth_context),
+    auth_context: AuthContext = Depends(get_member_organization_context),
 ):
     query = db.query(OrganizationMember).join(OrganizationMember.user).filter(
         OrganizationMember.organization_id == auth_context.membership.organization_id,
@@ -198,7 +198,7 @@ def list_meeting_invitees(
 def read_meeting(
     meeting_id: int,
     db: Session = Depends(get_db),
-    auth_context: AuthContext = Depends(get_auth_context),
+    auth_context: AuthContext = Depends(get_member_organization_context),
 ):
     meeting = get_meeting_for_current_org(
         meeting_id,
@@ -215,7 +215,7 @@ async def upload_audio(
     file: UploadFile | None = File(None),
     files: list[UploadFile] | None = File(None),
     db: Session = Depends(get_db),
-    auth_context: AuthContext = Depends(get_auth_context),
+    auth_context: AuthContext = Depends(get_member_organization_context),
 ):
     meeting = get_meeting_for_current_org(meeting_id, db, auth_context)
     if (file is None) == (not files):
@@ -275,7 +275,7 @@ def summarize_meeting(
     meeting_id: int,
     response: Response,
     db: Session = Depends(get_db),
-    auth_context: AuthContext = Depends(get_auth_context),
+    auth_context: AuthContext = Depends(get_member_organization_context),
 ):
     meeting = get_meeting_for_current_org(
         meeting_id,
@@ -315,7 +315,7 @@ def enqueue_summary(meeting: Meeting, response: Response, db: Session):
 def read_meeting_audio(
     meeting_id: int,
     db: Session = Depends(get_db),
-    auth_context: AuthContext = Depends(get_auth_context),
+    auth_context: AuthContext = Depends(get_member_organization_context),
 ):
     meeting = get_meeting_for_current_org(meeting_id, db, auth_context)
     if not meeting.audio_path:
@@ -332,7 +332,7 @@ def read_meeting_audio(
 def download_meeting_report(
     meeting_id: int,
     db: Session = Depends(get_db),
-    auth_context: AuthContext = Depends(get_auth_context),
+    auth_context: AuthContext = Depends(get_member_organization_context),
 ):
     db_meeting = get_meeting_for_current_org(meeting_id, db, auth_context)
     file_path = resolve_report_path(db_meeting.report_path)
