@@ -51,7 +51,7 @@ async function loadMeetings() {
     error.value = ''
   } catch (failure) {
     if (disposed || request !== requestNumber) return
-    if (failure.status === 401) router.push('/login')
+    if (failure.status === 401) router.push('/connexion')
     error.value = failure.message || 'Impossible de charger les réunions.'
   } finally {
     if (!disposed && request === requestNumber) {
@@ -75,7 +75,7 @@ onUnmounted(() => { disposed = true; clearTimeout(timer) })
         <h1 class="mt-2 text-2xl font-black tracking-tight text-slate-900">Historique des réunions</h1>
         <p class="mt-2 text-sm text-slate-500">Vos échanges, vos décisions et vos enregistrements, au même endroit.</p>
       </div>
-      <RouterLink to="/reunion" class="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-blue-100 hover:bg-blue-700"><Plus class="h-4 w-4" /> Nouvelle réunion</RouterLink>
+      <RouterLink to="/réunion" class="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-blue-100 hover:bg-blue-700"><Plus class="h-4 w-4" /> Nouvelle réunion</RouterLink>
     </header>
 
     <div class="mt-7 flex flex-col justify-between gap-4 border-b border-slate-100 pb-5 2xl:flex-row 2xl:items-center">
@@ -127,7 +127,7 @@ onUnmounted(() => { disposed = true; clearTimeout(timer) })
       <h2 class="mt-5 text-lg font-bold text-slate-900">{{ meetings.length ? 'Aucune réunion ne correspond' : 'Votre historique commence ici' }}</h2>
       <p class="mt-2 text-sm text-slate-500">{{ meetings.length ? 'Essayez un autre mot-clé ou un autre filtre.' : 'Enregistrez une réunion pour retrouver son audio, sa transcription et ses décisions.' }}</p>
       <button v-if="meetings.length" @click="filter = 'all'; searchQuery = ''" class="mt-5 text-sm font-bold text-blue-600">Effacer les filtres</button>
-      <RouterLink v-else to="/reunion" class="mt-5 text-sm font-bold text-blue-600">Créer une réunion →</RouterLink>
+      <RouterLink v-else to="/réunion" class="mt-5 text-sm font-bold text-blue-600">Créer une réunion →</RouterLink>
     </div>
   </section>
 </template>

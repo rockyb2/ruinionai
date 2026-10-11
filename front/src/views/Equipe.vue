@@ -323,7 +323,7 @@ onBeforeUnmount(() => {
 <template>
   <section class="team-page">
     <nav class="breadcrumb" aria-label="Fil d’Ariane">
-      <RouterLink to="/setting">Paramètres</RouterLink>
+      <RouterLink to="/paramètres">Paramètres</RouterLink>
       <ChevronRight :size="15" aria-hidden="true" />
       <span aria-current="page">Équipe</span>
     </nav>
@@ -354,7 +354,7 @@ onBeforeUnmount(() => {
     <div v-else-if="!canManage" class="panel state-panel stack">
       <h2>Accès réservé</h2>
       <p>La gestion de l’équipe est accessible au propriétaire et aux administrateurs.</p>
-      <RouterLink to="/reunion">Revenir aux réunions</RouterLink>
+      <RouterLink to="/réunion">Revenir aux réunions</RouterLink>
     </div>
 
     <template v-else>

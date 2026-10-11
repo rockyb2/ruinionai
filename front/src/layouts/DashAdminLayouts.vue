@@ -10,7 +10,7 @@ import '../admin/admin.css'
 
 const route = useRoute(), router = useRouter()
 const current = computed(() => navigation.find(item => item.path === route.path) || navigation[0])
-const connectedPages = ['/admin/organisations', '/admin/utilisateurs', '/admin/reunions', '/admin/audit']
+const connectedPages = ['/admin/organisations', '/admin/utilisateurs', '/admin/réunions', '/admin/audit-sécurité']
 const isDemo = computed(() => !connectedPages.includes(route.path))
 const menuOpen = ref(false), profileOpen = ref(false), loading = ref(true), accessError = ref(''), admin = ref(null)
 const adminName = computed(() => [admin.value?.first_name, admin.value?.last_name].filter(Boolean).join(' ') || admin.value?.email || 'Administration')
@@ -37,10 +37,10 @@ onMounted(verifyAccess)
     <main id="admin-content" class="a-main">
       <header class="a-page-header"><div class="a-page-title"><button class="a-icon-button a-mobile-menu" aria-label="Ouvrir le menu administrateur" :aria-expanded="menuOpen" @click="menuOpen = !menuOpen"><AdminIcon name="menu" /></button><div><h1>{{ current.label }}</h1><p>{{ current.description }}</p></div></div>
         <div class="a-header-actions"><span v-if="isDemo" class="a-demo-badge"><span class="a-dot" />Interface de démonstration</span>
-          <div v-if="admin" class="a-popover-anchor"><button class="a-profile" :aria-expanded="profileOpen" @click="profileOpen = !profileOpen"><span class="a-profile-avatar">{{ initials }}</span><span><strong>Super administrateur</strong><small>{{ adminName }}</small></span><AdminIcon name="down" :size="16" /></button><div v-if="profileOpen" class="a-popover"><p>{{ admin.email }}</p><RouterLink to="/reunion">Retour à l’application</RouterLink><button class="a-button a-spaced" @click="logout">Se déconnecter</button></div></div>
+          <div v-if="admin" class="a-popover-anchor"><button class="a-profile" :aria-expanded="profileOpen" @click="profileOpen = !profileOpen"><span class="a-profile-avatar">{{ initials }}</span><span><strong>Super administrateur</strong><small>{{ adminName }}</small></span><AdminIcon name="down" :size="16" /></button><div v-if="profileOpen" class="a-popover"><p>{{ admin.email }}</p><RouterLink to="/réunion">Retour à l’application</RouterLink><button class="a-button a-spaced" @click="logout">Se déconnecter</button></div></div>
         </div></header>
       <section v-if="loading" class="a-card a-panel" role="status">Vérification des droits administrateur…</section>
-      <section v-else-if="accessError" class="a-card a-panel"><h2>Accès refusé</h2><p class="a-danger-text a-spaced">{{ accessError }}</p><div class="a-actions a-spaced"><RouterLink class="a-button" to="/reunion">Retour à l’application</RouterLink><button class="a-button" @click="logout">Se connecter avec un autre compte</button></div></section>
+      <section v-else-if="accessError" class="a-card a-panel"><h2>Accès refusé</h2><p class="a-danger-text a-spaced">{{ accessError }}</p><div class="a-actions a-spaced"><RouterLink class="a-button" to="/réunion">Retour à l’application</RouterLink><button class="a-button" @click="logout">Se connecter avec un autre compte</button></div></section>
       <RouterView v-else />
       <footer class="a-page-footer"><span>Ruinion AI · Espace administrateur sécurisé</span><span>{{ isDemo ? 'Données fictives sur cette page' : 'Données de la plateforme' }}</span></footer>
     </main>

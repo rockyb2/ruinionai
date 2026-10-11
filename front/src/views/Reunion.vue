@@ -78,7 +78,7 @@ async function inviteMembers() {
   try {
     await ensureMeeting()
   } catch (error) {
-    if (error.status === 401) router.push('/login')
+    if (error.status === 401) router.push('/connexion')
     errorMessage.value = error.message || 'Impossible d’envoyer les invitations.'
   } finally {
     isInviting.value = false
@@ -164,7 +164,7 @@ async function processMeeting() {
     await router.push({ name: 'historique', query: { meeting: meeting.id } })
   } catch (error) {
     if (error.status === 401) {
-      router.push('/login')
+      router.push('/connexion')
       return
     }
 

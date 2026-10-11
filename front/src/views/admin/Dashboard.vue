@@ -202,7 +202,7 @@ const legend = computed(() => [
       ></AdminPanel>
       <AdminPanel title="Utilisation des modèles"
         ><template #action
-          ><RouterLink to="/admin/aifournisseurs" class="a-link"
+          ><RouterLink to="/admin/ia-fournisseurs" class="a-link"
             >Voir les détails</RouterLink
           ></template
         >
@@ -239,14 +239,14 @@ const legend = computed(() => [
     <div class="a-grid a-grid-main">
       <AdminPanel title="Dernières réunions"
         ><template #action
-          ><RouterLink to="/admin/reunions" class="a-link"
+          ><RouterLink to="/admin/réunions" class="a-link"
             >Voir toutes</RouterLink
           ></template
         ><AdminTable
           compact
           :rows="visibleMeetings.slice(0, 5)"
           :columns="meetingColumns"
-          @select="router.push(`/admin/reunions?id=${$event.id}`)"
+          @select="router.push(`/admin/réunions?id=${$event.id}`)"
           ><template #id="{ value }">#{{ value }}</template
           ><template #duration="{ value }">{{ duration(value) }}</template
           ><template #cost="{ value }">{{ money(value) }}</template
@@ -261,7 +261,7 @@ const legend = computed(() => [
                 text: '3 réunions en échec à relancer',
                 icon: 'alert',
                 color: 'red',
-                path: 'reunions',
+                path: 'réunions',
               },
               {
                 text: 'Organisations proches de leur quota',
@@ -273,13 +273,13 @@ const legend = computed(() => [
                 text: 'Vérifier les modèles de secours',
                 icon: 'cpu',
                 color: 'blue',
-                path: 'aifournisseurs',
+                path: 'ia-fournisseurs',
               },
               {
                 text: 'Consulter le journal de sécurité',
                 icon: 'shield',
                 color: 'purple',
-                path: 'audit',
+                path: 'audit-sécurité',
               },
             ]"
             :key="item.text"

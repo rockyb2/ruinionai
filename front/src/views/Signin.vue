@@ -80,7 +80,7 @@ async function handleSignup() {
       rememberMe.value,
     )
 
-    router.push('/reunion')
+    router.push('/réunion')
   } catch (error) {
     errorMessage.value = error.message || 'Inscription impossible pour le moment.'
   } finally {
@@ -93,7 +93,7 @@ async function handleSignup() {
   <main class="min-h-screen overflow-hidden bg-white text-[#071124]">
     <section class="relative mx-auto grid min-h-screen w-full max-w-[1728px] grid-cols-1 lg:grid-cols-[1fr_600px]">
       <div class="relative px-6 py-8 sm:px-10 lg:px-14 xl:px-16">
-        <RouterLink class="flex w-fit items-center gap-4" to="/login">
+        <RouterLink class="flex w-fit items-center gap-4" to="/connexion">
           <div class="grid h-12 w-12 place-items-center rounded-2xl bg-blue-600 text-white shadow-[0_18px_34px_rgba(37,99,235,0.28)]">
             <AudioLines :size="26" :stroke-width="2.6" />
           </div>
@@ -335,7 +335,7 @@ async function handleSignup() {
 
           <p class="mt-8 text-center text-sm font-medium text-slate-500">
             Vous avez déjà un compte ?
-            <RouterLink class="font-black text-blue-600 transition hover:text-blue-700" to="/login">
+            <RouterLink class="font-black text-blue-600 transition hover:text-blue-700" to="/connexion">
               Se connecter
             </RouterLink>
           </p>

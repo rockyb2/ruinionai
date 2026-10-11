@@ -18,10 +18,10 @@ const routes = [
     children: [
       {
         path: '',
-        redirect: '/reunion',
+        redirect: '/réunion',
       },
       {
-        path: 'reunion',
+        path: 'réunion',
         name: 'reunion',
         component: Reunion,
         meta: { title: 'Nouvelle réunion' },
@@ -33,13 +33,13 @@ const routes = [
         meta: { title: 'Historique' },
       },
       {
-        path: 'equipe',
+        path: 'équipe',
         name: 'equipe',
         component: Equipe,
         meta: { title: 'Équipe' },
       },
       {
-        path: 'setting',
+        path: 'paramètres',
         name: 'setting',
         component: Setting,
         meta: { title: 'Paramètres' },
@@ -53,13 +53,13 @@ const routes = [
     meta: { title: 'Invitation' },
   },
   {
-    path: '/login',
+    path: '/connexion',
     name: 'login',
     component: Login,
     meta: { guestOnly: true, title: 'Connexion' },
   },
   {
-    path: '/signin',
+    path: '/inscription',
     name: 'signin',
     component: Signin,
     meta: { guestOnly: true, title: 'Créer un compte' },
@@ -75,10 +75,10 @@ const routes = [
     children: [
       {
         path: '',
-        redirect: '/admin/dashboard',
+        redirect: '/admin/tableau-de-bord',
       },
       {
-        path: 'dashboard',
+        path: 'tableau-de-bord',
         name: 'admin-dashboard',
         component: () => import('../views/admin/Dashboard.vue'),
         meta: { title: 'Vue d’ensemble', admin: true },
@@ -90,19 +90,19 @@ const routes = [
         meta: { title: 'Utilisateurs', admin: true },
       },
       {
-        path: 'usage',
+        path: 'utilisation-coûts',
         name: 'admin-usage',
         component: () => import('../views/admin/Usage.vue'),
         meta: { title: 'Usage & coûts', admin: true },
       },
       {
-        path: 'reunions',
+        path: 'réunions',
         name: 'admin-reunions',
         component: () => import('../views/admin/Reunions.vue'),
         meta: { title: 'Réunions', admin: true },
       },
       {
-        path: 'audit',
+        path: 'audit-sécurité',
         name: 'admin-audit',
         component: () => import('../views/admin/Audit.vue'),
         meta: { title: 'Audit & sécurité', admin: true },
@@ -114,13 +114,13 @@ const routes = [
         meta: { title: 'Abonnements', admin: true },
       },
       {
-        path: 'configurations',
+        path: 'configuration',
         name: 'admin-configurations',
         component: () => import('../views/admin/Configurations.vue'),
         meta: { title: 'Configuration', admin: true },
       },
       {
-        path: 'aifournisseurs',
+        path: 'ia-fournisseurs',
         name: 'admin-aifournisseurs',
         component: () => import('../views/admin/AIfournisseurs.vue'),
         meta: { title: 'IA & fournisseurs', admin: true },

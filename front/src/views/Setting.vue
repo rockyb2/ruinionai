@@ -60,7 +60,7 @@ async function loadSettings() {
     fillForm(settings.value)
   } catch (error) {
     if (error.status === 401) {
-      await router.push('/login')
+      await router.push('/connexion')
       return
     }
     errorMessage.value = error.message || 'Impossible de charger les paramètres.'

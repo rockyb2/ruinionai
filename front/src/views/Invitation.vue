@@ -135,7 +135,7 @@ function useAnotherAccount() {
         <div class="absolute -right-28 -top-28 h-80 w-80 rounded-full border-[44px] border-white/10"></div>
         <div class="absolute -bottom-32 -left-24 h-96 w-96 rounded-full bg-indigo-400/20 blur-2xl"></div>
 
-        <RouterLink class="relative flex w-fit items-center gap-3" to="/login">
+        <RouterLink class="relative flex w-fit items-center gap-3" to="/connexion">
           <span class="grid h-12 w-12 place-items-center rounded-2xl bg-white text-blue-600 shadow-lg">
             <AudioLines :size="26" :stroke-width="2.6" />
           </span>
@@ -180,7 +180,7 @@ function useAnotherAccount() {
           <p class="mx-auto mt-3 max-w-sm text-sm font-medium leading-6 text-slate-500">
             Le lien est incomplet ou a été modifié. Demandez un nouveau lien à l'administrateur de l'équipe.
           </p>
-          <RouterLink class="mt-7 inline-flex h-12 items-center justify-center rounded-xl bg-blue-600 px-6 font-black text-white hover:bg-blue-700" to="/login">
+          <RouterLink class="mt-7 inline-flex h-12 items-center justify-center rounded-xl bg-blue-600 px-6 font-black text-white hover:bg-blue-700" to="/connexion">
             Aller à la connexion
           </RouterLink>
         </div>

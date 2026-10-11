@@ -5,7 +5,7 @@ defineEmits(["navigate"]);
 </script>
 <template>
   <aside class="a-sidebar">
-    <RouterLink to="/admin/dashboard" class="a-brand" @click="$emit('navigate')"
+    <RouterLink to="/admin/tableau-de-bord" class="a-brand" @click="$emit('navigate')"
       ><AdminIcon name="audio" :size="34" />
       <div>
         <strong>Ruinion AI</strong><span>Super administrateur</span>
@@ -34,7 +34,7 @@ defineEmits(["navigate"]);
           ><AdminIcon name="external" :size="15" />
         </div>
         <p>Les traces et les métriques IA, en détail.</p></a
-      ><RouterLink to="/reunion" class="a-back-app"
+      ><RouterLink to="/réunion" class="a-back-app"
         ><AdminIcon name="back" :size="16" />Retour à l’application</RouterLink
       >
     </div>

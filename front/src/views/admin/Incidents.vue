@@ -106,7 +106,7 @@ function download() {
           ]" /></AdminPanel
       ><AdminPanel title="Statut des services"
         ><template #action
-          ><RouterLink to="/admin/aifournisseurs" class="a-link"
+          ><RouterLink to="/admin/ia-fournisseurs" class="a-link"
             >Voir les fournisseurs</RouterLink
           ></template
         >

@@ -377,7 +377,7 @@ onBeforeUnmount(() => {
               <option>Mistral Large</option>
               <option>Modèle de secours</option>
             </select></label
-          ><RouterLink class="a-button a-button-soft" to="/admin/aifournisseurs"
+          ><RouterLink class="a-button a-button-soft" to="/admin/ia-fournisseurs"
             >Gérer les fournisseurs<AdminIcon name="arrow" :size="15"
           /></RouterLink></div
       ></AdminPanel>

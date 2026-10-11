@@ -25,7 +25,7 @@ export function useMeeting(meetingId) {
       error.value = ''
     } catch (failure) {
       if (disposed || request.signal.aborted) return
-      if (failure.status === 401) router.push('/login')
+      if (failure.status === 401) router.push('/connexion')
       error.value = failure.message || 'Impossible d’actualiser la réunion.'
     } finally {
       if (!disposed && !request.signal.aborted) {
@@ -51,7 +51,7 @@ export function useMeeting(meetingId) {
     } catch (failure) {
       if (disposed) return
       error.value = failure.message || 'Impossible de relancer le traitement.'
-      if (failure.status === 401) router.push('/login')
+      if (failure.status === 401) router.push('/connexion')
     } finally {
       retrying.value = false
       if (!disposed) timer = setTimeout(refresh, 1500)

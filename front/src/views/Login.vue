@@ -47,7 +47,7 @@ async function handleLogin() {
     )
 
     const redirectTo =
-      typeof route.query.redirect === 'string' ? route.query.redirect : '/reunion'
+      typeof route.query.redirect === 'string' ? route.query.redirect : '/réunion'
 
     router.push(redirectTo)
   } catch (error) {
@@ -62,7 +62,7 @@ async function handleLogin() {
   <main class="min-h-screen overflow-hidden bg-white text-[#071124]">
     <section class="relative mx-auto grid min-h-screen w-full max-w-[1728px] grid-cols-1 lg:grid-cols-[1fr_540px]">
       <div class="relative px-6 py-8 sm:px-10 lg:px-16">
-        <RouterLink class="flex w-fit items-center gap-4" to="/login">
+        <RouterLink class="flex w-fit items-center gap-4" to="/connexion">
           <div class="grid h-12 w-12 place-items-center rounded-2xl bg-blue-600 text-white shadow-[0_18px_34px_rgba(37,99,235,0.28)]">
             <AudioLines :size="26" :stroke-width="2.6" />
           </div>
@@ -235,7 +235,7 @@ async function handleLogin() {
 
           <p class="mt-10 text-center text-sm font-medium text-slate-500">
             Pas encore de compte ?
-            <RouterLink class="font-black text-blue-600 transition hover:text-blue-700" to="/signin">
+            <RouterLink class="font-black text-blue-600 transition hover:text-blue-700" to="/inscription">
               Créer un espace
             </RouterLink>
           </p>

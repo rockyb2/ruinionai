@@ -46,7 +46,7 @@ export const tone = (value) =>
 
 export const navigation = [
   [
-    "dashboard",
+    "tableau-de-bord",
     "Vue d’ensemble",
     "home",
     "État global de la plateforme Ruinion AI",
@@ -64,7 +64,7 @@ export const navigation = [
     "Tous les utilisateurs de la plateforme Ruinion AI",
   ],
   [
-    "reunions",
+    "réunions",
     "Réunions",
     "calendar",
     "Toutes les réunions traitées sur la plateforme",
@@ -76,13 +76,13 @@ export const navigation = [
     "Gestion des plans, des abonnements et des quotas",
   ],
   [
-    "usage",
+    "utilisation-coûts",
     "Usage & coûts",
     "chart",
     "Suivi de l’utilisation de la plateforme et des coûts associés",
   ],
   [
-    "aifournisseurs",
+    "ia-fournisseurs",
     "IA & fournisseurs",
     "cpu",
     "Configuration, suivi et performances des modèles et fournisseurs",
@@ -94,13 +94,13 @@ export const navigation = [
     "Suivi des erreurs, pannes et événements anormaux sur la plateforme",
   ],
   [
-    "audit",
+    "audit-sécurité",
     "Audit & sécurité",
     "shield",
     "Suivi des actions et de la sécurité des comptes",
   ],
   [
-    "configurations",
+    "configuration",
     "Configuration",
     "settings",
     "Paramètres généraux de la plateforme",

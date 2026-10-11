@@ -136,7 +136,7 @@ const meetingColumns = [
           title="Coûts par service" /></AdminPanel
       ><AdminPanel title="Coûts par fournisseur IA"
         ><template #action
-          ><RouterLink class="a-link" to="/admin/aifournisseurs"
+          ><RouterLink class="a-link" to="/admin/ia-fournisseurs"
             >Voir les détails</RouterLink
           ></template
         >
@@ -307,14 +307,14 @@ const meetingColumns = [
         </div></AdminPanel
       ><AdminPanel title="Dernières réunions · coûts"
         ><template #action
-          ><RouterLink class="a-link" to="/admin/reunions"
+          ><RouterLink class="a-link" to="/admin/réunions"
             >Voir toutes</RouterLink
           ></template
         ><AdminTable
           compact
           :rows="records.slice(0, 4)"
           :columns="meetingColumns"
-          @select="router.push(`/admin/reunions?id=${$event.id}`)"
+          @select="router.push(`/admin/réunions?id=${$event.id}`)"
           ><template #duration="{ value }">{{ duration(value) }}</template
           ><template #cost="{ value }">{{ money(value) }}</template
           ><template #status="{ value }"

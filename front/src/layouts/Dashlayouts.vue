@@ -142,7 +142,7 @@ function submitSearch() {
 
 async function handleLogout() {
   await logoutUser()
-  await router.push('/login')
+  await router.push('/connexion')
 }
 
 function handleOrganizationUpdated(event) {
@@ -170,7 +170,7 @@ async function loadLayout() {
     session.value = await getCurrentUser()
   } catch {
     await logoutUser()
-    await router.push('/login')
+    await router.push('/connexion')
     return
   }
 
@@ -269,7 +269,7 @@ onBeforeUnmount(() => {
               <p class="truncate text-sm font-black text-slate-800">{{ userName }}</p>
               <p class="mt-1 truncate text-xs text-slate-500">{{ user?.email }}</p>
               <p class="mt-3 text-xs font-black uppercase text-blue-600">{{ roleLabel }}</p>
-              <RouterLink class="mt-3 block rounded-lg px-3 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50" to="/setting">
+              <RouterLink class="mt-3 block rounded-lg px-3 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50" to="/paramètres">
                 Paramètres
               </RouterLink>
               <button class="mt-1 w-full rounded-lg px-3 py-2 text-left text-sm font-bold text-red-600 hover:bg-red-50" type="button" @click="handleLogout">
