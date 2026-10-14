@@ -1,15 +1,14 @@
 <script setup>
 import { navigation } from "../../admin/demo";
 import AdminIcon from "./AdminIcon.vue";
+import logo from "@/assets/logo.png";
 defineEmits(["navigate"]);
 </script>
 <template>
   <aside class="a-sidebar">
     <RouterLink to="/admin/tableau-de-bord" class="a-brand" @click="$emit('navigate')"
-      ><AdminIcon name="audio" :size="34" />
-      <div>
-        <strong>Ruinion AI</strong><span>Super administrateur</span>
-      </div></RouterLink
+      ><div class="a-brand-logo"><img :src="logo" alt="Ruinion AI" /></div>
+      <span>Super administrateur</span></RouterLink
     >
     <div class="a-nav-label">ESPACE ADMINISTRATION</div>
     <nav aria-label="Navigation administrateur">

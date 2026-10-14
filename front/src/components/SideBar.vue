@@ -47,7 +47,7 @@ function formatMeetingDate(value) {
   >
     <div class="flex items-center justify-center px-2">
       <RouterLink :to="{ name: 'reunion' }" @click="$emit('close')">
-        <img :src="logo" alt="Ruionin AI" class="h-20 w-auto object-contain" />
+        <img :src="logo" alt="Ruinion AI" class="h-20 w-auto object-contain" />
       </RouterLink>
 
       <button

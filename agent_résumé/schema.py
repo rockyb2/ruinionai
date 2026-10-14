@@ -14,6 +14,7 @@ from datetime import datetime
 OrganizationRole = Literal["owner", "admin", "member"]
 AssignableOrganizationRole = Literal["admin", "member"]
 OrganizationMemberStatus = Literal["active", "inactive"]
+CURRENT_TERMS_VERSION = "2026-10-12"
 
 
 class UserCreate(BaseModel):
@@ -34,6 +35,8 @@ class UserRead(BaseModel):
     is_super_admin: bool = False
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    accepted_terms_at: Optional[datetime] = None
+    accepted_terms_version: Optional[str] = None
 
 
 class OrganizationCreate(BaseModel):
@@ -213,6 +216,7 @@ class InvitationRegister(InvitationAccept):
     first_name: str = Field(min_length=1, max_length=100)
     last_name: str = Field(min_length=1, max_length=100)
     password: str = Field(min_length=8, max_length=128)
+    terms_accepted: Literal[True]
 
     @field_validator("first_name", "last_name", mode="before")
     @classmethod
@@ -235,6 +239,7 @@ class RegisterRequest(BaseModel):
     email: EmailStr = Field(..., max_length=255)
     password: str = Field(..., min_length=8, max_length=128)
     organization_name: str = Field(..., min_length=1, max_length=150)
+    terms_accepted: Literal[True]
 
     @field_validator("password")
     @classmethod

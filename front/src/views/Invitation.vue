@@ -2,7 +2,6 @@
 import { computed, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import {
-  AudioLines,
   CheckCircle2,
   Eye,
   EyeOff,
@@ -15,6 +14,7 @@ import {
   UserPlus,
 } from '@lucide/vue'
 
+import logo from '@/assets/logo.png'
 import {
   acceptOrganizationInvitation,
   clearAuthToken,
@@ -31,7 +31,7 @@ const errorMessage = ref('')
 const showPassword = ref(false)
 const rememberMe = ref(true)
 const loginForm = ref({ email: '', password: '' })
-const registerForm = ref({ firstName: '', lastName: '', password: '' })
+const registerForm = ref({ firstName: '', lastName: '', password: '', termsAccepted: false })
 
 const token = computed(() => {
   const fragment = route.hash.replace(/^#/, '')
@@ -100,6 +100,10 @@ async function registerAndAccept() {
     errorMessage.value = 'Le mot de passe doit contenir au moins 8 caractères et 72 octets maximum.'
     return
   }
+  if (!form.termsAccepted) {
+    errorMessage.value = 'Vous devez accepter les conditions d’utilisation et la politique de confidentialité.'
+    return
+  }
 
   loading.value = true
   errorMessage.value = ''
@@ -110,6 +114,7 @@ async function registerAndAccept() {
         first_name: form.firstName.trim(),
         last_name: form.lastName.trim(),
         password: form.password,
+        terms_accepted: form.termsAccepted,
       },
       rememberMe.value,
     )
@@ -136,10 +141,9 @@ function useAnotherAccount() {
         <div class="absolute -bottom-32 -left-24 h-96 w-96 rounded-full bg-indigo-400/20 blur-2xl"></div>
 
         <RouterLink class="relative flex w-fit items-center gap-3" to="/connexion">
-          <span class="grid h-12 w-12 place-items-center rounded-2xl bg-white text-blue-600 shadow-lg">
-            <AudioLines :size="26" :stroke-width="2.6" />
+          <span class="rounded-2xl bg-white px-4 py-2 shadow-lg">
+            <img :src="logo" alt="Ruinion AI" class="h-11 w-auto max-w-[210px] object-contain" />
           </span>
-          <span class="text-xl font-black">RUINION AI</span>
         </RouterLink>
 
         <div class="relative mt-20 max-w-xl">
@@ -249,6 +253,16 @@ function useAnotherAccount() {
             <label class="flex items-center gap-3 text-sm font-semibold text-slate-500">
               <input v-model="rememberMe" class="h-4 w-4 rounded border-slate-300 text-blue-600" type="checkbox" />
               Se souvenir de moi
+            </label>
+
+            <label class="flex cursor-pointer items-start gap-3 text-sm font-semibold leading-6 text-slate-600">
+              <input v-model="registerForm.termsAccepted" class="mt-1 h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600" type="checkbox" required />
+              <span>
+                J’accepte les
+                <RouterLink class="font-bold text-blue-600" to="/conditions-d-utilisation" target="_blank">conditions d’utilisation</RouterLink>
+                et la
+                <RouterLink class="font-bold text-blue-600" to="/politique-de-confidentialite" target="_blank">politique de confidentialité</RouterLink>.
+              </span>
             </label>
 
             <button class="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 font-black text-white shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none" type="submit" :disabled="loading">

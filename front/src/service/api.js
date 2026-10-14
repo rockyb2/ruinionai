@@ -63,13 +63,17 @@ async function parseApiError(response, fallbackMessage) {
   try {
     const data = await response.json()
 
+    if (response.status === 429) {
+      return 'Trop de tentatives. Patientez trois minutes avant de réessayer.'
+    }
+
     if (Array.isArray(data.detail)) {
       return data.detail
         .map((item) => item.msg || item.message || fallbackMessage)
         .join(' ')
     }
 
-    return data.detail || data.message || fallbackMessage
+    return data.detail || data.message || data.error || fallbackMessage
   } catch {
     return fallbackMessage
   }

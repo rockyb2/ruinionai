@@ -8,11 +8,15 @@ import {
   CheckCircle2,
   LoaderCircle,
   Save,
+  ScrollText,
   ShieldCheck,
   UserRound,
   Users,
+  X,
 } from '@lucide/vue'
 
+import ConditionsUtilisation from '@/views/ConditionsUtilisation.vue'
+import PolitiqueConfidentialite from '@/views/PolitiqueConfidentialite.vue'
 import {
   getCurrentUser,
   getOrganizationSettings,
@@ -27,6 +31,12 @@ const isLoading = ref(true)
 const isSaving = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
+const legalDocument = ref(null)
+const legalDocumentComponent = computed(() =>
+  legalDocument.value === 'confidentialite'
+    ? PolitiqueConfidentialite
+    : ConditionsUtilisation,
+)
 const form = reactive({
   name: '',
   description: '',
@@ -324,6 +334,41 @@ onMounted(loadSettings)
           </p>
         </article>
 
+        <article class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div class="flex items-start gap-4">
+            <span class="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-600">
+              <ScrollText class="h-6 w-6" />
+            </span>
+            <div>
+              <h2 class="text-lg font-black text-slate-900">Documents juridiques</h2>
+              <p class="mt-1 text-sm font-semibold text-slate-500">
+                Consultez les règles applicables à vos données et à l’utilisation du service.
+              </p>
+            </div>
+          </div>
+
+          <div class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+            <section class="rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+              <h3 class="text-sm font-black text-slate-900">Politique de confidentialité</h3>
+              <p class="mt-2 text-xs font-semibold leading-5 text-slate-600">
+                Découvrez les données traitées, leur utilisation, leur conservation et vos droits.
+              </p>
+              <button class="mt-4 text-sm font-black text-blue-700 hover:text-blue-800" type="button" @click="legalDocument = 'confidentialite'">
+                Afficher la politique
+              </button>
+            </section>
+            <section class="rounded-xl border border-violet-100 bg-violet-50/60 p-4">
+              <h3 class="text-sm font-black text-slate-900">Conditions d’utilisation</h3>
+              <p class="mt-2 text-xs font-semibold leading-5 text-slate-600">
+                Consultez les responsabilités, les usages autorisés et les règles du service.
+              </p>
+              <button class="mt-4 text-sm font-black text-violet-700 hover:text-violet-800" type="button" @click="legalDocument = 'conditions'">
+                Afficher les conditions
+              </button>
+            </section>
+          </div>
+        </article>
+
         <p
           v-if="errorMessage"
           class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700"
@@ -352,5 +397,26 @@ onMounted(loadSettings)
         </button>
       </div>
     </form>
+
+    <Teleport to="body">
+      <div
+        v-if="legalDocument"
+        class="fixed inset-0 z-[100] bg-slate-950/50 p-3 backdrop-blur-sm sm:p-6"
+        role="presentation"
+        @click.self="legalDocument = null"
+      >
+        <section class="relative mx-auto h-full max-w-6xl overflow-y-auto rounded-2xl bg-white shadow-2xl" role="dialog" aria-modal="true" aria-label="Document juridique">
+          <button
+            class="sticky left-full top-4 z-20 mr-4 grid h-11 w-11 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-lg hover:text-slate-900"
+            type="button"
+            aria-label="Fermer le document"
+            @click="legalDocument = null"
+          >
+            <X class="h-5 w-5" />
+          </button>
+          <component :is="legalDocumentComponent" embedded />
+        </section>
+      </div>
+    </Teleport>
   </section>
 </template>

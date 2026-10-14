@@ -16,6 +16,7 @@ from notification_service import (
     sync_invitation_notifications_for_user,
 )
 from schema import (
+    CURRENT_TERMS_VERSION,
     AuthResponse,
     InvitationAccept,
     InvitationRegister,
@@ -173,6 +174,8 @@ def register_from_invitation(
             email=invitation.email,
             password_hash=hash_password(payload.password),
             is_active=True,
+            accepted_terms_at=datetime.utcnow(),
+            accepted_terms_version=CURRENT_TERMS_VERSION,
         )
         db.add(user)
         db.flush()

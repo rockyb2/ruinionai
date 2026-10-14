@@ -2,8 +2,8 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  AudioLines,
   Building2,
+  CircleAlert,
   CheckCircle2,
   Eye,
   EyeOff,
@@ -16,8 +16,10 @@ import {
   Sparkles,
   SquareCheckBig,
   User,
+  X,
 } from '@lucide/vue'
 
+import logo from '@/assets/logo.png'
 import signinVisual from '../assets/visuelsignin.png'
 import { registerUser } from '@/service/api'
 
@@ -29,11 +31,18 @@ const organizationName = ref('')
 const email = ref('')
 const password = ref('')
 const confirmPassword = ref('')
+const termsAccepted = ref(false)
 const rememberMe = ref(true)
 const showPassword = ref(false)
 const showConfirmPassword = ref(false)
 const isSubmitting = ref(false)
 const errorMessage = ref('')
+const noticeOpen = ref(false)
+
+function showError(message) {
+  errorMessage.value = message
+  noticeOpen.value = true
+}
 
 function validateForm() {
   if (
@@ -54,6 +63,10 @@ function validateForm() {
     return 'Les deux mots de passe ne correspondent pas.'
   }
 
+  if (!termsAccepted.value) {
+    return 'Vous devez accepter les conditions d’utilisation et la politique de confidentialité.'
+  }
+
   return ''
 }
 
@@ -61,7 +74,7 @@ async function handleSignup() {
   const validationError = validateForm()
 
   if (validationError) {
-    errorMessage.value = validationError
+    showError(validationError)
     return
   }
 
@@ -76,13 +89,14 @@ async function handleSignup() {
         organization_name: organizationName.value,
         email: email.value,
         password: password.value,
+        terms_accepted: termsAccepted.value,
       },
       rememberMe.value,
     )
 
     router.push('/réunion')
   } catch (error) {
-    errorMessage.value = error.message || 'Inscription impossible pour le moment.'
+    showError(error.message || 'Inscription impossible pour le moment.')
   } finally {
     isSubmitting.value = false
   }
@@ -94,24 +108,10 @@ async function handleSignup() {
     <section class="relative mx-auto grid min-h-screen w-full max-w-[1728px] grid-cols-1 lg:grid-cols-[1fr_600px]">
       <div class="relative px-6 py-8 sm:px-10 lg:px-14 xl:px-16">
         <RouterLink class="flex w-fit items-center gap-4" to="/connexion">
-          <div class="grid h-12 w-12 place-items-center rounded-2xl bg-blue-600 text-white shadow-[0_18px_34px_rgba(37,99,235,0.28)]">
-            <AudioLines :size="26" :stroke-width="2.6" />
-          </div>
-          <div>
-            <p class="text-2xl font-black leading-none tracking-normal">
-              RUINION <span class="text-blue-600">AI</span>
-            </p>
-            <p class="mt-2 text-sm font-medium text-slate-500">
-              Votre mémoire de réunion collaborative
-            </p>
-          </div>
+          <img :src="logo" alt="Ruinion AI" class="h-14 w-auto max-w-[240px] object-contain" />
         </RouterLink>
 
         <div class="relative z-10 mt-14 max-w-[650px]">
-          <p class="inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-black text-blue-600">
-            <Sparkles class="h-4 w-4" />
-            Lancement de votre workspace
-          </p>
           <h1 class="mt-6 text-4xl font-black leading-[1.18] tracking-normal text-slate-950 sm:text-5xl lg:text-[3.25rem]">
             Créez un espace d'équipe prêt pour vos comptes rendus IA.
           </h1>
@@ -308,6 +308,16 @@ async function handleSignup() {
             Rester connecté
           </label>
 
+          <label class="mt-4 flex cursor-pointer items-start gap-3 text-sm font-semibold leading-6 text-slate-600">
+            <input v-model="termsAccepted" class="mt-1 h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500" type="checkbox" required />
+            <span>
+              J’accepte les
+              <RouterLink class="font-bold text-blue-600 hover:text-blue-700" to="/conditions-d-utilisation" target="_blank">conditions d’utilisation</RouterLink>
+              et la
+              <RouterLink class="font-bold text-blue-600 hover:text-blue-700" to="/politique-de-confidentialite" target="_blank">politique de confidentialité</RouterLink>.
+            </span>
+          </label>
+
           <p
             v-if="errorMessage"
             class="mt-5 rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600"
@@ -343,4 +353,45 @@ async function handleSignup() {
       </aside>
     </section>
   </main>
+
+  <Teleport to="body">
+    <div
+      v-if="noticeOpen"
+      class="fixed inset-0 z-[100] grid place-items-center bg-slate-950/45 p-5 backdrop-blur-sm"
+      role="presentation"
+      @click.self="noticeOpen = false"
+    >
+      <section
+        class="w-full max-w-md rounded-2xl border border-red-100 bg-white p-6 shadow-2xl"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="signup-notice-title"
+      >
+        <div class="flex items-start justify-between gap-4">
+          <span class="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-red-50 text-red-600">
+            <CircleAlert class="h-6 w-6" />
+          </span>
+          <button
+            class="grid h-10 w-10 place-items-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+            type="button"
+            aria-label="Fermer le message"
+            @click="noticeOpen = false"
+          >
+            <X class="h-5 w-5" />
+          </button>
+        </div>
+        <h2 id="signup-notice-title" class="mt-5 text-xl font-black text-slate-950">
+          Inscription impossible
+        </h2>
+        <p class="mt-3 text-sm font-semibold leading-6 text-slate-600">{{ errorMessage }}</p>
+        <button
+          class="mt-6 h-11 w-full rounded-xl bg-blue-600 text-sm font-black text-white transition hover:bg-blue-700"
+          type="button"
+          @click="noticeOpen = false"
+        >
+          J’ai compris
+        </button>
+      </section>
+    </div>
+  </Teleport>
 </template>

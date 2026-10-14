@@ -11,7 +11,14 @@ from auth.rate_limit import limiter
 from auth.security import create_access_token, hash_password, verify_password
 from database import get_db
 from models import Organization, OrganizationMember, User
-from schema import AuthResponse, CurrentUserResponse, LoginRequest, RegisterRequest, Token
+from schema import (
+    CURRENT_TERMS_VERSION,
+    AuthResponse,
+    CurrentUserResponse,
+    LoginRequest,
+    RegisterRequest,
+    Token,
+)
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -31,7 +38,7 @@ def normalize_email(email: str) -> str:
 
 
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
-@limiter.limit("3/hour")
+@limiter.limit("3 per 3 minutes")
 def register(
     request: Request,
     response: Response,
@@ -62,6 +69,8 @@ def register(
         email=email,
         password_hash=hash_password(payload.password),
         is_active=True,
+        accepted_terms_at=datetime.utcnow(),
+        accepted_terms_version=CURRENT_TERMS_VERSION,
     )
     organization = Organization(name=organization_name)
 

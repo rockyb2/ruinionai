@@ -91,6 +91,7 @@ class SecurityTests(unittest.TestCase):
                 "email": "test@example.com",
                 "password": "MotDePasseSolide1!",
                 "organization_name": "Test organisation",
+                "terms_accepted": True,
             },
         )
         self.assertEqual(response.status_code, 403, response.text)

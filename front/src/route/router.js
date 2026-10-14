@@ -1,10 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 import Dashlayouts from '../layouts/Dashlayouts.vue'
+import ConditionsUtilisation from '../views/ConditionsUtilisation.vue'
 import Equipe from '../views/Equipe.vue'
 import Historique from '../views/Historique.vue'
 import Invitation from '../views/Invitation.vue'
 import Login from '../views/Login.vue'
+import PolitiqueConfidentialite from '../views/PolitiqueConfidentialite.vue'
 import Reunion from '../views/Reunion.vue'
 import Setting from '../views/Setting.vue'
 import Signin from '../views/Signin.vue'
@@ -51,6 +53,19 @@ const routes = [
     name: 'invitation',
     component: Invitation,
     meta: { title: 'Invitation' },
+  },
+  {
+    path: '/politique-de-confidentialite',
+    alias: '/politique-de-confidentialité',
+    name: 'politique-confidentialite',
+    component: PolitiqueConfidentialite,
+    meta: { title: 'Politique de confidentialité' },
+  },
+  {
+    path: '/conditions-d-utilisation',
+    name: 'conditions-utilisation',
+    component: ConditionsUtilisation,
+    meta: { title: 'Conditions d’utilisation' },
   },
   {
     path: '/connexion',

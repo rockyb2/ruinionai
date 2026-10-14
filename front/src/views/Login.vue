@@ -2,7 +2,6 @@
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  AudioLines,
   CheckCircle2,
   Eye,
   EyeOff,
@@ -14,7 +13,8 @@ import {
   ShieldCheck,
   SquareCheckBig,
 } from '@lucide/vue'
-
+import logo from '@/assets/logo.png'
+import logoR from '@/assets/logoR.png'
 import loginVisual from '../assets/visuel1login.png'
 import { loginUser } from '@/service/api'
 
@@ -63,24 +63,10 @@ async function handleLogin() {
     <section class="relative mx-auto grid min-h-screen w-full max-w-[1728px] grid-cols-1 lg:grid-cols-[1fr_540px]">
       <div class="relative px-6 py-8 sm:px-10 lg:px-16">
         <RouterLink class="flex w-fit items-center gap-4" to="/connexion">
-          <div class="grid h-12 w-12 place-items-center rounded-2xl bg-blue-600 text-white shadow-[0_18px_34px_rgba(37,99,235,0.28)]">
-            <AudioLines :size="26" :stroke-width="2.6" />
-          </div>
-          <div>
-            <p class="text-2xl font-black leading-none tracking-normal">
-              RUINION <span class="text-blue-600">AI</span>
-            </p>
-            <p class="mt-2 text-sm font-medium text-slate-500">
-              Mémoire de réunion pour équipes exigeantes
-            </p>
-          </div>
+          <img :src="logo" alt="Ruinion AI" class="h-14 w-auto max-w-[240px] object-contain" />
         </RouterLink>
 
         <div class="relative z-10 mt-16 max-w-[660px] lg:mt-14">
-          <p class="inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-black text-blue-600">
-            <ShieldCheck class="h-4 w-4" />
-            Espace sécurisé
-          </p>
           <h1 class="mt-6 text-4xl font-black leading-[1.18] tracking-normal text-slate-950 sm:text-5xl lg:text-[3.35rem]">
             Retrouvez chaque décision, chaque action, chaque réunion.
           </h1>
@@ -156,8 +142,8 @@ async function handleLogin() {
           @submit.prevent="handleLogin"
         >
           <div class="grid justify-items-center text-center">
-            <div class="grid h-14 w-14 place-items-center rounded-2xl bg-blue-600 text-white shadow-[0_16px_32px_rgba(37,99,235,0.32)]">
-              <AudioLines :size="30" :stroke-width="2.6" />
+            <div class="flex  items-center justify-center ">
+              <img :src="logoR" alt="RUINION AI" class="h-16 w-16" />
             </div>
             <h2 class="mt-8 text-2xl font-black tracking-normal text-slate-950">
               Connexion
@@ -237,6 +223,11 @@ async function handleLogin() {
             Pas encore de compte ?
             <RouterLink class="font-black text-blue-600 transition hover:text-blue-700" to="/inscription">
               Créer un espace
+            </RouterLink>
+          </p>
+          <p class="mt-4 text-center text-xs font-semibold text-slate-400">
+            <RouterLink class="hover:text-blue-600" to="/politique-de-confidentialite">
+              Politique de confidentialité
             </RouterLink>
           </p>
         </form>

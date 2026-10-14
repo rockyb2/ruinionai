@@ -28,6 +28,8 @@ class User(Base):
     token_version = Column(Integer, nullable=False, default=0, server_default="0")
     failed_login_attempts = Column(Integer, nullable=False, default=0, server_default="0")
     locked_until = Column(DateTime, nullable=True)
+    accepted_terms_at = Column(DateTime, nullable=True)
+    accepted_terms_version = Column(String(20), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
