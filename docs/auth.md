@@ -81,7 +81,7 @@ Pour la production, definir :
 ```env
 SECRET_KEY=une_longue_cle_aleatoire
 ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=1440
+ACCESS_TOKEN_EXPIRE_MINUTES=360
 ```
 
 En developpement, le backend a une valeur par defaut pour `SECRET_KEY`, mais elle ne doit pas etre utilisee en production.

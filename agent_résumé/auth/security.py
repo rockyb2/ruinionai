@@ -23,16 +23,16 @@ TOKEN_AUDIENCE = "ruinionai-api"
 
 
 def _access_token_lifetime() -> int:
-    raw_value = os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30").strip()
+    raw_value = os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "360").strip()
     try:
         value = int(raw_value)
     except ValueError as error:
         raise RuntimeError(
             "ACCESS_TOKEN_EXPIRE_MINUTES doit être un entier."
         ) from error
-    if not 5 <= value <= 60:
+    if not 5 <= value <= 1440:
         raise RuntimeError(
-            "ACCESS_TOKEN_EXPIRE_MINUTES doit être compris entre 5 et 60."
+            "ACCESS_TOKEN_EXPIRE_MINUTES doit être compris entre 5 et 1440."
         )
     return value
 
