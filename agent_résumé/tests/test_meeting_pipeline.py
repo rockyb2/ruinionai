@@ -296,13 +296,22 @@ class ModelBoundaryTests(unittest.TestCase):
         self.assertEqual(writing["summary_short_characters"], len("Résumé privé"))
 
     def test_long_transcription_timeout_scales_by_ten_minute_chunks(self):
-        self.assertEqual(stage_timeout("transcribing", 60), 120)
-        self.assertEqual(stage_timeout("transcribing", 2469), 480)
+        self.assertEqual(stage_timeout("transcribing", 60), 1440)
+        self.assertEqual(stage_timeout("transcribing", 2469), 2160)
         self.assertEqual(stage_timeout("writing", 2469), 30)
 
     @patch("processing_task._split_audio")
     @patch("transcription_service.transcribe_audio_with_segments")
-    def test_long_recording_merges_chunks_and_offsets(self, transcribe, split):
+    @patch(
+        "processing_task._transcribe_with_elevenlabs",
+        side_effect=ValueError("ElevenLabs indisponible"),
+    )
+    def test_long_recording_merges_chunks_and_offsets(
+        self,
+        elevenlabs,
+        transcribe,
+        split,
+    ):
         split.return_value = [(Path("one.mp3"), 0.0, 600.0),
                               (Path("two.mp3"), 600.0, 20.0)]
         transcribe.side_effect = [
@@ -316,6 +325,39 @@ class ModelBoundaryTests(unittest.TestCase):
         self.assertEqual(result["transcription"], "Premier Second")
         self.assertEqual(result["transcription_segments"][-1]["start"], 601.0)
         self.assertEqual(transcribe.call_args_list[1].kwargs["timestamp_offset"], 600.0)
+        elevenlabs.assert_called_once()
+
+    @patch("processing_task._transcribe_with_voxtral")
+    @patch("processing_task._transcribe_with_elevenlabs")
+    def test_primary_transcription_uses_complete_recording_without_voxtral(
+        self,
+        elevenlabs,
+        voxtral,
+    ):
+        elevenlabs.return_value = {
+            "transcription": "Intervenant 1 : Bonjour.",
+            "transcription_segments": [{
+                "start": 0.0,
+                "end": 1.0,
+                "text": "Bonjour.",
+                "speaker": "Intervenant 1",
+            }],
+        }
+
+        with patch.dict(os.environ, {
+            "TRANSCRIPTION_PROVIDER_IDS": (
+                "elevenlabs/scribe_v2,mistral/voxtral-mini-latest"
+            ),
+        }, clear=False):
+            result = _transcribe_recording(Path("recording.mp3"), 3700)
+
+        self.assertEqual(result["transcription_segments"][0]["speaker"], "Intervenant 1")
+        elevenlabs.assert_called_once_with(
+            Path("recording.mp3"),
+            3700,
+            "scribe_v2",
+        )
+        voxtral.assert_not_called()
 
     def test_invalid_json_empty_and_missing_sections_are_rejected(self):
         for invalid in ['print("hello")', '{"summary_short":"ok"}', json.dumps({**CONTENT, "summary_short": "  "})]:

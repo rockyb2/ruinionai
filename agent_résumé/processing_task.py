@@ -34,12 +34,13 @@ def _split_audio(path, duration, directory):
     return chunks
 
 
-def _transcribe_recording(path, duration):
+def _transcribe_with_voxtral(path, duration, model_id):
     from transcription_service import transcribe_audio_with_segments
 
     if not duration or duration <= LONG_AUDIO_SECONDS:
         return transcribe_audio_with_segments(
             path.read_bytes(), path.name, "audio/mpeg", expected_duration=duration,
+            model_id=model_id,
         )
     all_segments = []
     with TemporaryDirectory(prefix="ruinion-transcription-") as directory:
@@ -47,10 +48,42 @@ def _transcribe_recording(path, duration):
             result = transcribe_audio_with_segments(
                 chunk.read_bytes(), chunk.name, "audio/mpeg",
                 expected_duration=chunk_duration, timestamp_offset=offset,
+                model_id=model_id,
             )
             all_segments.extend(result["transcription_segments"])
     return {"transcription": " ".join(item["text"] for item in all_segments).strip(),
             "transcription_segments": all_segments}
+
+
+def _transcribe_with_elevenlabs(path, duration, model_id):
+    from elevenlabs_transcription import transcribe_with_elevenlabs
+
+    return transcribe_with_elevenlabs(
+        path.read_bytes(),
+        path.name,
+        "audio/mpeg",
+        expected_duration=duration,
+        model_id=model_id,
+    )
+
+
+def _transcribe_recording(path, duration):
+    """Try the configured providers for the complete recording.
+
+    ElevenLabs receives the complete MP3 so its speaker identifiers remain
+    consistent. Voxtral keeps the existing ten-minute chunking strategy when
+    it is used as the fallback for a long recording.
+    """
+    from transcription_orchestrator import transcribe_with_fallback
+
+    return transcribe_with_fallback({
+        "elevenlabs": lambda model_id: _transcribe_with_elevenlabs(
+            path, duration, model_id,
+        ),
+        "mistral": lambda model_id: _transcribe_with_voxtral(
+            path, duration, model_id,
+        ),
+    })
 
 
 def execute(payload):
@@ -100,6 +133,8 @@ def safe_error(error, stage):
     # Never expose provider response bodies, credentials or prompts.
     name = type(error).__name__.lower()
     status = getattr(error, "status_code", None)
+    if type(error).__name__ == "AllTranscriptionProvidersFailed":
+        return "La transcription est temporairement indisponible. RÃ©essayez dans quelques instants."
     if "validation" in name or "json" in name:
         return "Le modèle a retourné un contenu incomplet ou un format invalide."
     if status == 429 or "ratelimit" in name:

@@ -1,4 +1,5 @@
 """Mistral transcription with validated timestamps for audio navigation."""
+
 import math
 import os
 
@@ -9,7 +10,9 @@ MAX_CONSECUTIVE_REPEATS = 2
 
 
 def _value(segment, name):
-    return segment.get(name) if isinstance(segment, dict) else getattr(segment, name, None)
+    return (
+        segment.get(name) if isinstance(segment, dict) else getattr(segment, name, None)
+    )
 
 
 def clean_transcription_segments(raw_segments, expected_duration=None, offset=0.0):
@@ -25,7 +28,13 @@ def clean_transcription_segments(raw_segments, expected_duration=None, offset=0.
         except (TypeError, ValueError):
             continue
         text = " ".join(str(_value(segment, "text") or "").split())
-        if not text or not math.isfinite(start) or not math.isfinite(end) or start < 0 or end <= start:
+        if (
+            not text
+            or not math.isfinite(start)
+            or not math.isfinite(end)
+            or start < 0
+            or end <= start
+        ):
             continue
         if duration is not None and start > duration + 1:
             continue
@@ -46,23 +55,32 @@ def clean_transcription_segments(raw_segments, expected_duration=None, offset=0.
     return cleaned
 
 
-def transcribe_audio_with_segments(audio_bytes: bytes, file_name: str, content_type: str,
-                                   expected_duration=None, timestamp_offset=0.0) -> dict:
+def transcribe_audio_with_segments(
+    audio_bytes: bytes,
+    file_name: str,
+    content_type: str,
+    expected_duration=None,
+    timestamp_offset=0.0,
+    model_id=None,
+) -> dict:
     api_key = os.getenv("MISTRAL_API_KEY", "").strip()
     if not api_key:
         raise ValueError("Configuration manquante : MISTRAL_API_KEY.")
     if not audio_bytes:
         raise ValueError("La note vocale est vide.")
-    
+
     from langfuse import get_client
 
     client = Mistral(api_key=api_key)
     langfuse = get_client()
 
-    model = os.getenv(
-        "MISTRAL_AUDIO_MODEL",
-        "voxtral-mini-latest",
-    )
+    model = (
+        model_id or os.getenv("MISTRAL_AUDIO_MODEL", "voxtral-mini-latest")
+    ).strip()
+
+
+    if not model:
+        raise ValueError("Configuration manquante : MISTRAL_AUDIO_MODEL.")
 
     with sanitized_observation(
         langfuse.start_as_current_observation(
@@ -104,9 +122,7 @@ def transcribe_audio_with_segments(audio_bytes: bytes, file_name: str, content_t
             timestamp_offset,
         )
 
-        text = " ".join(
-            segment["text"] for segment in segments
-        ).strip()
+        text = " ".join(segment["text"] for segment in segments).strip()
 
         if not text:
             raise ValueError(
@@ -161,14 +177,7 @@ def transcribe_audio_with_segments(audio_bytes: bytes, file_name: str, content_t
             "transcription": text,
             "transcription_segments": segments,
         }
-    
-            
-        
-                    
-            
 
-    
-    
     # ancien code ce n'est pas pro mais c'est mon app 👍
     # response = client.audio.transcriptions.complete(
     #     model=os.getenv("MISTRAL_AUDIO_MODEL", "voxtral-mini-latest"),

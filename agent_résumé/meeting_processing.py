@@ -24,6 +24,9 @@ RUNNING = ("preparing", "transcribing", "writing", "building")
 ACTIVE = ("queued", *RUNNING)
 TIMEOUTS = {"preparing": 330, "transcribing": 90, "writing": 30, "building": 60}
 TRANSCRIPTION_CHUNK_SECONDS = 10 * 60
+ELEVENLABS_ATTEMPT_TIMEOUT_SECONDS = 600
+TRANSCRIPTION_ATTEMPTS_PER_PROVIDER = 2
+TRANSCRIPTION_TIMEOUT_BUFFER_SECONDS = 60
 USER_STAGE_ERRORS = {
     "preparing": "Nous n’avons pas pu préparer l’enregistrement. Réessayez.",
     "transcribing": "La transcription n’a pas pu être terminée. Réessayez dans quelques instants.",
@@ -73,7 +76,13 @@ def next_stage(meeting):
 def stage_timeout(stage, audio_duration=None):
     if stage == "transcribing" and audio_duration:
         chunks = max(1, math.ceil(float(audio_duration) / TRANSCRIPTION_CHUNK_SECONDS))
-        return TIMEOUTS[stage] * chunks + 30
+        # The primary provider receives the complete recording. If its two
+        # attempts fail, Voxtral may then process every ten-minute chunk twice.
+        return (
+            ELEVENLABS_ATTEMPT_TIMEOUT_SECONDS * TRANSCRIPTION_ATTEMPTS_PER_PROVIDER
+            + TIMEOUTS[stage] * chunks * TRANSCRIPTION_ATTEMPTS_PER_PROVIDER
+            + TRANSCRIPTION_TIMEOUT_BUFFER_SECONDS
+        )
     return TIMEOUTS[stage]
 
 
