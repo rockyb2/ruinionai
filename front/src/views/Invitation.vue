@@ -255,16 +255,6 @@ function useAnotherAccount() {
               Se souvenir de moi
             </label>
 
-            <label class="flex cursor-pointer items-start gap-3 text-sm font-semibold leading-6 text-slate-600">
-              <input v-model="registerForm.termsAccepted" class="mt-1 h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600" type="checkbox" required />
-              <span>
-                J’accepte les
-                <RouterLink class="font-bold text-blue-600" to="/conditions-d-utilisation" target="_blank">conditions d’utilisation</RouterLink>
-                et la
-                <RouterLink class="font-bold text-blue-600" to="/politique-de-confidentialite" target="_blank">politique de confidentialité</RouterLink>.
-              </span>
-            </label>
-
             <button class="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 font-black text-white shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none" type="submit" :disabled="loading">
               <LoaderCircle v-if="loading" class="animate-spin" :size="20" />
               Se connecter et accepter
@@ -316,6 +306,16 @@ function useAnotherAccount() {
             <label class="flex items-center gap-3 text-sm font-semibold text-slate-500">
               <input v-model="rememberMe" class="h-4 w-4 rounded border-slate-300 text-blue-600" type="checkbox" />
               Se souvenir de moi
+            </label>
+
+            <label class="flex cursor-pointer items-start gap-3 text-sm font-semibold leading-6 text-slate-600">
+              <input v-model="registerForm.termsAccepted" class="mt-1 h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600" type="checkbox" required />
+              <span>
+                J’accepte les
+                <RouterLink class="font-bold text-blue-600" to="/conditions-d-utilisation" target="_blank">conditions d’utilisation</RouterLink>
+                et la
+                <RouterLink class="font-bold text-blue-600" to="/politique-de-confidentialite" target="_blank">politique de confidentialité</RouterLink>.
+              </span>
             </label>
 
             <button class="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 font-black text-white shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none" type="submit" :disabled="loading">
