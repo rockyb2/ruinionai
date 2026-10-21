@@ -26,7 +26,7 @@ let disposed = false
 let copiedTimer
 const segments = computed(() => meeting.value?.transcription_segments || [])
 const visibleSegments = computed(() => segments.value.map((segment, index) => ({ ...segment, index }))
-  .filter(segment => segment.text.toLocaleLowerCase('fr').includes(search.value.toLocaleLowerCase('fr'))))
+  .filter(segment => `${segment.speaker || ''} ${segment.text || ''}`.toLocaleLowerCase('fr').includes(search.value.toLocaleLowerCase('fr'))))
 const paragraphs = computed(() => (meeting.value?.transcription || '').split(/\n\s*\n|\n/).filter(text => text.trim())
   .filter(text => text.toLocaleLowerCase('fr').includes(search.value.toLocaleLowerCase('fr'))))
 const activeSegment = computed(() => segments.value.findIndex(segment => currentTime.value >= segment.start && currentTime.value < segment.end))
@@ -152,7 +152,10 @@ onUnmounted(() => {
               <div v-if="segments.length" class="space-y-2">
                 <div v-for="segment in visibleSegments" :key="segment.index" :data-segment="segment.index" class="flex gap-3 rounded-xl px-3 py-4 transition-colors" :class="activeSegment === segment.index ? 'bg-blue-50' : 'hover:bg-slate-50'">
                   <button @click="seek(segment.start)" :disabled="!audioUrl || audioLoading" :aria-label="`Écouter à ${formatTime(segment.start)}`" class="h-fit shrink-0 rounded-md bg-blue-50 px-2 py-1 text-xs font-bold tabular-nums text-blue-600 hover:bg-blue-100 disabled:opacity-40">{{ formatTime(segment.start) }}</button>
-                  <p class="min-w-0 whitespace-pre-wrap break-words text-sm leading-7 text-slate-700">{{ segment.text }}</p>
+                  <div class="min-w-0">
+                    <p v-if="segment.speaker" class="mb-1 text-xs font-bold text-blue-600">{{ segment.speaker }}</p>
+                    <p class="whitespace-pre-wrap break-words text-sm leading-7 text-slate-700">{{ segment.text }}</p>
+                  </div>
                 </div>
               </div>
               <div v-else-if="meeting.transcription" class="space-y-5"><p v-for="(paragraph, index) in paragraphs" :key="index" class="whitespace-pre-wrap break-words text-sm leading-8 text-slate-700">{{ paragraph }}</p></div>

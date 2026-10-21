@@ -43,6 +43,9 @@ services:
       ZAI_MODEL: ${ZAI_MODEL:-}
       MISTRAL_AUDIO_MODEL: ${MISTRAL_AUDIO_MODEL:-voxtral-mini-latest}
       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      ELEVENLABS_AUDIO_MODEL: ${ELEVENLABS_AUDIO_MODEL:-scribe_v2}
+      TRANSCRIPTION_PROVIDER_IDS: ${TRANSCRIPTION_PROVIDER_IDS:-elevenlabs/scribe_v2,mistral/voxtral-mini-latest}
+      TRANSCRIPTION_LANGUAGE: ${TRANSCRIPTION_LANGUAGE:-fra}
       REPORTS_DIR: /app/storage/reports
       AUDIO_DIR: /app/storage/audio
       LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
