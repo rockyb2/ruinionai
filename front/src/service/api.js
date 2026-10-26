@@ -210,8 +210,12 @@ export async function registerFromInvitation(data, remember = true) {
   return response
 }
 
-export async function listMeetings() {
-  return apiRequest('/meetings/', {}, 'Impossible de charger les reunions.')
+export async function listMeetings({ limit, offset } = {}) {
+  const query = new URLSearchParams()
+  if (Number.isSafeInteger(limit) && limit > 0) query.set('limit', String(limit))
+  if (Number.isSafeInteger(offset) && offset >= 0) query.set('offset', String(offset))
+  const suffix = query.size ? `?${query}` : ''
+  return apiRequest(`/meetings/${suffix}`, {}, 'Impossible de charger les reunions.')
 }
 
 export async function createMeeting(data) {

@@ -90,7 +90,7 @@ try {
       window.__apiCalls.push({path, fields, method:options.method || 'GET'});
       const body = path.includes('/auth/me') ? {user:{id:1,first_name:'Audio',last_name:'Test'}, organization:{id:1,name:'Test'}, role:'member'}
         : path.includes('/meetings/invitees') || path.includes('/organization/notifications') ? {items:[],total:0,unread_count:0,offset:0,limit:20}
-        : path === '/api/meetings/' && !options.method ? []
+        : (path === '/api/meetings/' || path.startsWith('/api/meetings/?')) && !options.method ? []
         : {id:1, title:'Test', transcription:'Transcription simulée', summary_short:'Résumé simulé'};
       return new Response(JSON.stringify(body), {status:200, headers:{'Content-Type':'application/json'}});
     };

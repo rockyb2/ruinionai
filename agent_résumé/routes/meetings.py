@@ -6,17 +6,30 @@ from fastapi.responses import FileResponse
 from starlette.concurrency import run_in_threadpool
 from sqlalchemy import func, or_, update
 from sqlalchemy.orm import Session, joinedload
-from meeting_crypto import decrypt_meeting_content
+from meeting_crypto import decrypt_meeting_content, decrypt_meeting_value
 from auth.dependencies import AuthContext, get_member_organization_context
 from audio_processing import AudioValidationError, MAX_AUDIO_BYTES, MAX_AUDIO_SEGMENTS, audio_input_format
 from database import get_db
 from meeting_processing import ACTIVE
 from meeting_storage import audio_directory, resolve_audio
 from models import Meeting, MeetingParticipant, OrganizationMember, OrganizationNotification, User
-from schema import MeetingCreate, MeetingInviteesPage, MeetingRead
+from schema import MeetingCreate, MeetingInviteesPage, MeetingListItem, MeetingRead
 from tools import get_reports_dir
 
 router = APIRouter()
+
+
+def restrict_meetings_to_current_member(query, auth_context: AuthContext):
+    """Applique la visibilité métier des réunions à une requête SQLAlchemy."""
+    if auth_context.membership.role in ("owner", "admin"):
+        return query
+
+    return query.filter(or_(
+        Meeting.created_by_user_id == auth_context.user.id,
+        Meeting.invited_members.any(
+            MeetingParticipant.member_id == auth_context.membership.id
+        ),
+    ))
 
 
 def get_meeting_for_current_org(
@@ -24,14 +37,14 @@ def get_meeting_for_current_org(
     db: Session,
     auth_context: AuthContext,
 ) -> Meeting:
-    db_meeting = (
+    query = (
         db.query(Meeting)
         .filter(
             Meeting.id == meeting_id,
             Meeting.organization_id == auth_context.membership.organization_id,
         )
-        .first()
     )
+    db_meeting = restrict_meetings_to_current_member(query, auth_context).first()
     if db_meeting is None:
         raise HTTPException(status_code=404, detail="Réunion introuvable.")
 
@@ -53,7 +66,6 @@ def meeting_read_data(
         meeting,
         allow_legacy_plaintext=allow_legacy_plaintext,
     )
-
     return MeetingRead(
         id=meeting.id,
         organization_id=meeting.organization_id,
@@ -77,6 +89,32 @@ def meeting_read_data(
         updated_at=meeting.updated_at,
     )
 
+
+def meeting_list_data(meeting: Meeting) -> MeetingListItem:
+    """Retourne uniquement les données nécessaires aux cartes et à la navigation."""
+    return MeetingListItem(
+        id=meeting.id,
+        organization_id=meeting.organization_id,
+        created_by_user_id=meeting.created_by_user_id,
+        title=meeting.title,
+        participants=meeting.participants,
+        participant_member_ids=meeting.participant_member_ids,
+        summary_short=decrypt_meeting_value(
+            meeting,
+            "summary_short",
+            allow_legacy_plaintext=True,
+        ),
+        report_path=meeting.report_path,
+        audio_available=meeting.audio_available,
+        has_source_audio=meeting.has_source_audio,
+        audio_duration=meeting.audio_duration,
+        processing_status=meeting.processing_status,
+        processing_error=meeting.processing_error,
+        date=meeting.date,
+        created_at=meeting.created_at,
+        updated_at=meeting.updated_at,
+    )
+
 def resolve_report_path(report_path: str | None) -> Path:
     if not report_path:
         raise HTTPException(status_code=404, detail="Le compte rendu n’a pas encore été généré.")
@@ -90,22 +128,29 @@ def resolve_report_path(report_path: str | None) -> Path:
     return file_path
 
 
-@router.get("/meetings/", response_model=list[MeetingRead])
+@router.get("/meetings/", response_model=list[MeetingListItem])
 def list_meetings(
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db),
     auth_context: AuthContext = Depends(get_member_organization_context),
 ):
-    meetings = (
+    query = (
         db.query(Meeting)
         .filter(
             Meeting.organization_id
             == auth_context.membership.organization_id
         )
+    )
+    meetings = (
+        restrict_meetings_to_current_member(query, auth_context)
         .order_by(Meeting.created_at.desc(), Meeting.id.desc())
+        .offset(offset)
+        .limit(limit)
         .all()
     )
 
-    return [meeting_read_data(meeting) for meeting in meetings]
+    return [meeting_list_data(meeting) for meeting in meetings]
 
 
 @router.post("/meetings/", response_model=MeetingRead)

@@ -333,3 +333,26 @@ class MeetingRead(BaseModel):
     date: Optional[datetime] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+
+
+class MeetingListItem(BaseModel):
+    """Métadonnées légères utilisées par les listes de réunions."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    organization_id: Optional[int] = None
+    created_by_user_id: Optional[int] = None
+    title: str
+    participants: Optional[str] = None
+    participant_member_ids: List[int] = Field(default_factory=list)
+    summary_short: Optional[str] = None
+    report_path: Optional[str] = None
+    audio_available: bool = False
+    has_source_audio: bool = False
+    audio_duration: Optional[float] = None
+    processing_status: str = "idle"
+    processing_error: Optional[str] = None
+    date: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None

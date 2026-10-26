@@ -13,7 +13,10 @@ const searchQuery = ref(typeof route.query.q === 'string' ? route.query.q : '')
 const filter = ref('all')
 const sort = ref('recent')
 const loading = ref(true)
+const loadingMore = ref(false)
+const hasMore = ref(true)
 const error = ref('')
+const PAGE_SIZE = 50
 let timer
 let disposed = false
 let requestNumber = 0
@@ -41,13 +44,20 @@ const filteredMeetings = computed(() => {
     })
 })
 function names(meeting) { return (meeting.participants || '').split(',').map(name => name.trim()).filter(Boolean) }
-async function loadMeetings() {
+async function loadMeetings({ append = false } = {}) {
   clearTimeout(timer)
   const request = ++requestNumber
+  if (append) loadingMore.value = true
   try {
-    const result = await listMeetings()
+    const result = await listMeetings({
+      limit: PAGE_SIZE,
+      offset: append ? meetings.value.length : 0,
+    })
     if (disposed || request !== requestNumber) return
-    meetings.value = result
+    meetings.value = append
+      ? [...meetings.value, ...result.filter(item => !meetings.value.some(existing => existing.id === item.id))]
+      : result
+    hasMore.value = result.length === PAGE_SIZE
     error.value = ''
   } catch (failure) {
     if (disposed || request !== requestNumber) return
@@ -56,6 +66,7 @@ async function loadMeetings() {
   } finally {
     if (!disposed && request === requestNumber) {
       loading.value = false
+      loadingMore.value = false
       if (!selectedMeetingId.value) timer = setTimeout(loadMeetings, meetings.value.some(isProcessing) ? 3000 : 15000)
     }
   }
@@ -128,6 +139,11 @@ onUnmounted(() => { disposed = true; clearTimeout(timer) })
       <p class="mt-2 text-sm text-slate-500">{{ meetings.length ? 'Essayez un autre mot-clé ou un autre filtre.' : 'Enregistrez une réunion pour retrouver son audio, sa transcription et ses décisions.' }}</p>
       <button v-if="meetings.length" @click="filter = 'all'; searchQuery = ''" class="mt-5 text-sm font-bold text-blue-600">Effacer les filtres</button>
       <RouterLink v-else to="/réunion" class="mt-5 text-sm font-bold text-blue-600">Créer une réunion →</RouterLink>
+    </div>
+    <div v-if="!loading && hasMore && meetings.length" class="mt-6 flex justify-center">
+      <button type="button" :disabled="loadingMore" class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-600 hover:border-blue-200 hover:text-blue-600 disabled:opacity-50" @click="loadMeetings({ append: true })">
+        <LoaderCircle v-if="loadingMore" class="h-4 w-4 animate-spin" /> Afficher plus de réunions
+      </button>
     </div>
   </section>
 </template>

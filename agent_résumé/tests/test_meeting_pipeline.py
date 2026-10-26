@@ -128,6 +128,16 @@ class MeetingPipelineTests(unittest.TestCase):
         self.assertEqual(self.enqueue()["processing_status"], "writing")
         self.assertNotIn("processing_token", self.get())
 
+    def test_meeting_list_is_lightweight_and_paginated(self):
+        response = self.client.get("/meetings/", params={"limit": 1, "offset": 0})
+        self.assertEqual(response.status_code, 200, response.text)
+        item = response.json()[0]
+        self.assertEqual(item["title"], "Budget d’équipe")
+        self.assertNotIn("transcription", item)
+        self.assertNotIn("transcription_segments", item)
+        self.assertNotIn("summary_long", item)
+        self.assertEqual(self.client.get("/meetings/", params={"limit": 1, "offset": 1}).json(), [])
+
     def test_content_commits_before_real_word_and_completed_request_reuses_result(self):
         self.enqueue()
         async def runner(payload, timeout):

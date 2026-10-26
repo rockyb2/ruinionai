@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
-import { ArrowLeft, CalendarDays, Check, Copy, Download, FileText, Headphones, LoaderCircle, RefreshCw, Search, Users } from '@lucide/vue'
+import { ArrowLeft, CalendarDays, Check, Copy, Download, FileText, Headphones, LoaderCircle, Play, RefreshCw, Search, Users } from '@lucide/vue'
 import { useMeeting } from '@/composables/useMeeting'
 import { downloadMeetingReport, getMeetingAudio } from '@/service/api'
 import { formatMeetingDate, formatTime, isProcessing, processingErrorMessage, statusLabel } from '@/utils/meeting'
@@ -21,14 +21,21 @@ const transcriptPanel = ref(null)
 const actionError = ref('')
 const downloading = ref(false)
 const copied = ref(false)
+const visibleLimit = ref(150)
+const TRANSCRIPT_BATCH_SIZE = 150
 let audioController
 let disposed = false
 let copiedTimer
 const segments = computed(() => meeting.value?.transcription_segments || [])
-const visibleSegments = computed(() => segments.value.map((segment, index) => ({ ...segment, index }))
+const filteredSegments = computed(() => segments.value.map((segment, index) => ({ ...segment, index }))
   .filter(segment => `${segment.speaker || ''} ${segment.text || ''}`.toLocaleLowerCase('fr').includes(search.value.toLocaleLowerCase('fr'))))
-const paragraphs = computed(() => (meeting.value?.transcription || '').split(/\n\s*\n|\n/).filter(text => text.trim())
+const displayedSegments = computed(() => filteredSegments.value.slice(0, visibleLimit.value))
+const filteredParagraphs = computed(() => (meeting.value?.transcription || '').split(/\n\s*\n|\n/).filter(text => text.trim())
   .filter(text => text.toLocaleLowerCase('fr').includes(search.value.toLocaleLowerCase('fr'))))
+const displayedParagraphs = computed(() => filteredParagraphs.value.slice(0, visibleLimit.value))
+const hasMoreTranscript = computed(() => segments.value.length
+  ? displayedSegments.value.length < filteredSegments.value.length
+  : displayedParagraphs.value.length < filteredParagraphs.value.length)
 const activeSegment = computed(() => segments.value.findIndex(segment => currentTime.value >= segment.start && currentTime.value < segment.end))
 const participants = computed(() => (meeting.value?.participants || '').split(',').map(name => name.trim()).filter(Boolean))
 const busy = computed(() => isProcessing(meeting.value))
@@ -81,10 +88,12 @@ async function copyText() {
   } catch { actionError.value = 'La copie est indisponible dans ce navigateur.' }
 }
 
-watch(() => meeting.value?.audio_available, available => { if (available && !audioUrl.value) loadAudio() })
+watch(search, () => { visibleLimit.value = TRANSCRIPT_BATCH_SIZE })
 watch(speed, value => { if (audio.value) audio.value.playbackRate = Number(value) })
 watch(activeSegment, async index => {
   if (!follow.value || !playing.value || tab.value !== 'transcript' || index < 0) return
+  const displayedIndex = filteredSegments.value.findIndex(segment => segment.index === index)
+  if (displayedIndex >= visibleLimit.value) visibleLimit.value = displayedIndex + TRANSCRIPT_BATCH_SIZE
   await nextTick()
   const panel = transcriptPanel.value
   const item = panel?.querySelector(`[data-segment="${index}"]`)
@@ -150,7 +159,7 @@ onUnmounted(() => {
           <div id="meeting-text" ref="transcriptPanel" role="tabpanel" :aria-labelledby="`tab-${tab}`" class="relative min-h-80 max-h-[65vh] overflow-y-auto overscroll-contain px-5 py-6 sm:px-7 xl:h-[calc(100vh-22rem)] xl:min-h-96">
             <template v-if="tab === 'transcript'">
               <div v-if="segments.length" class="space-y-2">
-                <div v-for="segment in visibleSegments" :key="segment.index" :data-segment="segment.index" class="flex gap-3 rounded-xl px-3 py-4 transition-colors" :class="activeSegment === segment.index ? 'bg-blue-50' : 'hover:bg-slate-50'">
+                <div v-for="segment in displayedSegments" :key="segment.index" :data-segment="segment.index" class="flex gap-3 rounded-xl px-3 py-4 transition-colors" :class="activeSegment === segment.index ? 'bg-blue-50' : 'hover:bg-slate-50'">
                   <button @click="seek(segment.start)" :disabled="!audioUrl || audioLoading" :aria-label="`Écouter à ${formatTime(segment.start)}`" class="h-fit shrink-0 rounded-md bg-blue-50 px-2 py-1 text-xs font-bold tabular-nums text-blue-600 hover:bg-blue-100 disabled:opacity-40">{{ formatTime(segment.start) }}</button>
                   <div class="min-w-0">
                     <p v-if="segment.speaker" class="mb-1 text-xs font-bold text-blue-600">{{ segment.speaker }}</p>
@@ -158,9 +167,12 @@ onUnmounted(() => {
                   </div>
                 </div>
               </div>
-              <div v-else-if="meeting.transcription" class="space-y-5"><p v-for="(paragraph, index) in paragraphs" :key="index" class="whitespace-pre-wrap break-words text-sm leading-8 text-slate-700">{{ paragraph }}</p></div>
+              <div v-else-if="meeting.transcription" class="space-y-5"><p v-for="(paragraph, index) in displayedParagraphs" :key="index" class="whitespace-pre-wrap break-words text-sm leading-8 text-slate-700">{{ paragraph }}</p></div>
               <p v-else class="py-14 text-center text-sm leading-7 text-slate-400">{{ busy ? 'La transcription apparaîtra ici dès qu’elle sera prête.' : 'Aucune transcription disponible pour cette réunion.' }}</p>
-              <p v-if="search && !(segments.length ? visibleSegments.length : paragraphs.length)" class="py-12 text-center text-sm text-slate-400">Aucun passage ne correspond à votre recherche.</p>
+              <p v-if="search && !(segments.length ? filteredSegments.length : filteredParagraphs.length)" class="py-12 text-center text-sm text-slate-400">Aucun passage ne correspond à votre recherche.</p>
+              <div v-if="hasMoreTranscript" class="flex justify-center border-t border-slate-100 pt-5">
+                <button type="button" class="rounded-lg bg-slate-50 px-4 py-2.5 text-sm font-bold text-blue-600 hover:bg-blue-50" @click="visibleLimit += TRANSCRIPT_BATCH_SIZE">Afficher la suite de la transcription</button>
+              </div>
             </template>
             <p v-else class="whitespace-pre-wrap break-words text-sm leading-8 text-slate-700">{{ (tab === 'summary' ? meeting.summary_short : meeting.summary_long) || 'Ce contenu n’est pas encore disponible.' }}</p>
           </div>
@@ -176,6 +188,9 @@ onUnmounted(() => {
             </div>
             <div class="space-y-4 p-5 pt-2">
               <p v-if="audioLoading" role="status" class="flex items-center gap-2 text-sm text-blue-600"><LoaderCircle class="h-4 w-4 animate-spin" /> Chargement de l’audio…</p>
+              <button v-else-if="meeting.audio_available && !audioUrl && !audioError" type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white hover:bg-blue-700" @click="loadAudio">
+                <Play class="h-4 w-4" /> Charger et écouter l’audio
+              </button>
               <template v-if="audioUrl">
                 <audio ref="audio" :src="audioUrl" controls preload="metadata" class="w-full" aria-label="Lecteur de la réunion"
                   @timeupdate="currentTime = $event.target.currentTime" @play="playing = true; audioError = ''" @pause="playing = false" @ended="playing = false"

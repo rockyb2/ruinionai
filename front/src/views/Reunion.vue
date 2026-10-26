@@ -1,5 +1,13 @@
 <script setup>
-import { computed, ref } from 'vue'
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from 'vue'
+import { storeToRefs } from 'pinia'
+
 import { useRouter } from 'vue-router'
 import {
   Check,
@@ -17,15 +25,19 @@ import { createMeeting, generateSummary, uploadAudio } from '@/service/api'
 import AudioRecorder from '@/components/AudioRecorder.vue'
 import AudioPreview from '@/components/AudioPreview.vue'
 import MeetingInvitees from '@/components/MeetingInvitees.vue'
+import { useMeetingDraftStore } from '@/stores/meetingDraft'
 import { MAX_AUDIO_BYTES } from '@/utils/audio'
 
 const router = useRouter()
+const meetingDraft  = useMeetingDraftStore()
 
-const meetingTitle = ref('Réunion commerciale')
-const selectedMembers = ref([])
-const createdMeeting = ref(null)
+const {
+  title: meetingTitle,
+  selectedMembers,
+  createdMeeting,
+  invitationMessage,
+} = storeToRefs(meetingDraft)
 const isInviting = ref(false)
-const invitationMessage = ref('')
 const selectedFile = ref(null)
 const fileInput = ref(null)
 const audioRecorder = ref(null)
@@ -37,6 +49,34 @@ const hasRecording = ref(false)
 const isSubmitting = ref(false)
 const statusMessage = ref('')
 const errorMessage = ref('')
+
+// mise en place  restoration du draft de réunion si l'utilisateur revient sur la page
+onMounted(() => {
+  meetingDraft.restore()
+})
+
+watch(
+  [
+    meetingTitle,
+    selectedMembers,
+    createdMeeting,
+    invitationMessage,
+  ],
+  () => {
+    if (meetingDraft.restored) {
+      meetingDraft.persist()
+    }
+  },
+  {
+    deep: true,
+  },
+)
+
+onBeforeUnmount(() => {
+  if (meetingDraft.restored) {
+    meetingDraft.persist()
+  }
+})
 
 const importDisabled = computed(() => isSubmitting.value || recordingActive.value || hasRecording.value || Boolean(createdMeeting.value?.has_source_audio))
 const canSubmit = computed(() => !isSubmitting.value && !isInviting.value && !recordingActive.value
@@ -56,6 +96,7 @@ const steps = [
 const selectedFileName = computed(() => {
   return selectedFile.value?.name || 'Glissez votre fichier ici ou cliquez pour parcourir'
 })
+
 
 async function ensureMeeting() {
   if (createdMeeting.value) return createdMeeting.value

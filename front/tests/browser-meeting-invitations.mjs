@@ -101,7 +101,7 @@ try {
         if (window.__failCreate) { window.__failCreate = false; return json({detail:'Membre indisponible, réessayez.'},422) }
         window.__meetings = [meeting]; return json(meeting);
       }
-      if (path === '/api/meetings/') return json(window.__meetings);
+      if (path === '/api/meetings/' || path.startsWith('/api/meetings/?')) return json(window.__meetings);
       if (path.endsWith('/summary')) {
         if (window.__failSummary) { window.__failSummary = false; return json({detail:'Génération temporairement indisponible.'},502) }
         window.__meetings = [{...meeting,has_source_audio:true,processing_status:'completed',summary_short:'Résumé simulé',transcription:'Transcription simulée'}];

@@ -6,6 +6,7 @@ import Equipe from '../views/Equipe.vue'
 import Historique from '../views/Historique.vue'
 import Invitation from '../views/Invitation.vue'
 import Login from '../views/Login.vue'
+import NotFound from '../views/NotFound.vue'
 import PolitiqueConfidentialite from '../views/PolitiqueConfidentialite.vue'
 import Reunion from '../views/Reunion.vue'
 import Setting from '../views/Setting.vue'
@@ -55,8 +56,7 @@ const routes = [
     meta: { title: 'Invitation' },
   },
   {
-    path: '/politique-de-confidentialite',
-    alias: '/politique-de-confidentialité',
+    path: '/politique-de-confidentialité',
     name: 'politique-confidentialite',
     component: PolitiqueConfidentialite,
     meta: { title: 'Politique de confidentialité' },
@@ -153,8 +153,37 @@ const routes = [
         meta: { title: 'Incidents', admin: true },
       },
     ]
-  }
+  },
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'not-found',
+    component: NotFound,
+    meta: { title: 'Page introuvable' },
+  },
 ]
+
+const FRENCH_PATHS = {
+  '/reunion': '/réunion',
+  '/equipe': '/équipe',
+  '/parametres': '/paramètres',
+  '/politique-de-confidentialite': '/politique-de-confidentialité',
+  '/admin/reunions': '/admin/réunions',
+  '/admin/audit-securite': '/admin/audit-sécurité',
+  '/admin/utilisation-couts': '/admin/utilisation-coûts',
+}
+
+function normalizePath(path) {
+  let decodedPath = path
+
+  try {
+    decodedPath = decodeURI(path)
+  } catch {
+    // Une URL mal encodée reste inchangée et aboutira à la page 404.
+  }
+
+  const normalizedPath = decodedPath.normalize('NFC')
+  return FRENCH_PATHS[normalizedPath] || normalizedPath
+}
 
 const router = createRouter({
   history: createWebHistory(),
@@ -162,6 +191,17 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
+  const normalizedPath = normalizePath(to.path)
+
+  if (normalizedPath !== to.path) {
+    return {
+      path: normalizedPath,
+      query: to.query,
+      hash: to.hash,
+      replace: true,
+    }
+  }
+
   const loggedIn = isAuthenticated()
 
   if (to.matched.some((route) => route.meta.requiresAuth) && !loggedIn) {

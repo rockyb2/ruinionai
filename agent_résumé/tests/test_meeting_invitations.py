@@ -114,6 +114,44 @@ class MeetingInvitationsTests(unittest.TestCase):
         self.current_user_id = 1
         self.assertEqual(self.notification_list()["unread_count"], 1)
 
+    def test_members_only_access_meetings_they_created_or_were_invited_to(self):
+        invited = self.create_meeting(participant_member_ids=[12]).json()
+        hidden = self.create_meeting(participant_member_ids=[]).json()
+
+        self.current_user_id = 2
+        own = self.create_meeting(participant_member_ids=[]).json()
+
+        response = self.client.get("/meetings/")
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(
+            {meeting["id"] for meeting in response.json()},
+            {invited["id"], own["id"]},
+        )
+        self.assertEqual(self.client.get(f'/meetings/{invited["id"]}').status_code, 200)
+        self.assertEqual(self.client.get(f'/meetings/{own["id"]}').status_code, 200)
+
+        denied_requests = (
+            ("get", f'/meetings/{hidden["id"]}'),
+            ("get", f'/meetings/{hidden["id"]}/audio'),
+            ("get", f'/meetings/{hidden["id"]}/report'),
+            ("post", f'/meetings/{hidden["id"]}/audio'),
+            ("post", f'/meetings/{hidden["id"]}/summary'),
+        )
+        for method, path in denied_requests:
+            with self.subTest(method=method, path=path):
+                self.assertEqual(getattr(self.client, method)(path).status_code, 404)
+
+        self.current_user_id = 1
+        owner_ids = {meeting["id"] for meeting in self.client.get("/meetings/").json()}
+        self.assertEqual(owner_ids, {invited["id"], hidden["id"], own["id"]})
+
+        membership = self.db.get(OrganizationMember, 12)
+        membership.role = "admin"
+        self.db.commit()
+        self.current_user_id = 2
+        admin_ids = {meeting["id"] for meeting in self.client.get("/meetings/").json()}
+        self.assertEqual(admin_ids, owner_ids)
+
     def test_meeting_notifications_are_independent_of_admin_invitation_alerts(self):
         self.create_meeting()
         organization = self.db.get(Organization, 1)

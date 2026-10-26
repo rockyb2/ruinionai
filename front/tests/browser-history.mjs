@@ -23,7 +23,11 @@ await withBrowser('history-smoke', async ({ command, evaluate, click, visibleTex
       const json = (body,status=200) => new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json'}});
       if (path === '/api/auth/me') return json({user:{id:1,first_name:'Jonathan',last_name:'Zadi'},organization:{id:1,name:'Ruinion AI'},role:'member'});
       if (path.includes('/organization/notifications') || path.includes('/meetings/invitees')) return json({items:[],total:0,unread_count:0});
-      if (path === '/api/meetings/') return json(window.__meetings);
+      if (path === '/api/meetings/' || path.startsWith('/api/meetings/?')) {
+        const params = new URL(path, location.origin).searchParams;
+        const offset = Number(params.get('offset') || 0), limit = Number(params.get('limit') || 50);
+        return json(window.__meetings.slice(offset, offset + limit));
+      }
       const id = Number(path.split('/')[3]);
       const meeting = window.__meetings.find(m => m.id === id);
       if (meeting && path.endsWith('/audio')) {
@@ -53,6 +57,7 @@ await withBrowser('history-smoke', async ({ command, evaluate, click, visibleTex
   await evaluate(`(() => { const input=document.querySelector('input[aria-label="Rechercher une réunion"]'); input.value='financière'; input.dispatchEvent(new Event('input',{bubbles:true})) })()`)
   await until(() => evaluate('document.querySelectorAll("[data-testid=meeting-card]").length === 1'), 'search filter')
   await evaluate(`document.querySelector('[data-testid="meeting-card"]').click()`)
+  await click('Charger et écouter l’audio')
   await until(() => evaluate('document.querySelector("audio")?.readyState >= 1'), 'authenticated audio')
   const positions = await evaluate(`['transcript-panel','audio-panel'].map(name=> {const r=document.querySelector('[data-testid='+name+']').getBoundingClientRect(); return {x:r.x,y:r.y,width:r.width}})`)
   assert.ok(positions[0].x < positions[1].x)

@@ -161,7 +161,7 @@ function refreshNotifications() {
 }
 
 async function refreshMeetings() {
-  try { recentMeetings.value = (await listMeetings()).slice(0, 4) } catch { /* Keep the current list on a temporary failure. */ }
+  try { recentMeetings.value = await listMeetings({ limit: 4 }) } catch { /* Keep the current list on a temporary failure. */ }
 }
 
 async function loadLayout() {
@@ -175,7 +175,7 @@ async function loadLayout() {
   }
 
   const meetingsResult = await Promise.allSettled([
-    listMeetings(),
+    listMeetings({ limit: 4 }),
     loadNotifications({ sync: true }),
   ])
   recentMeetings.value = meetingsResult[0].status === 'fulfilled'
