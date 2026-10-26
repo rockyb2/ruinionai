@@ -32,10 +32,26 @@ from routes.meetings import router
 
 CONTENT = {
     "summary_short": "Le calendrier est validé. Awa enverra le planning.",
-    "report": {"resume_long": "L’équipe a validé le calendrier de lancement.",
-               "points_importants": ["Le calendrier"], "decisions": ["Calendrier validé"],
-               "actions": [{"action": "Envoyer le planning", "responsable": "Awa", "echeance": "Non précisé"}],
-               "questions_ouvertes": [], "risques_blocages": []},
+    "report": {
+        "resume_long": "L’équipe a validé le calendrier de lancement.",
+        "sujets": [{
+            "titre": "Calendrier de lancement",
+            "contexte": "L’équipe prépare le lancement.",
+            "points_discutes": ["Le calendrier"],
+            "informations_importantes": [],
+            "propositions": [],
+            "decisions": ["Calendrier validé"],
+            "actions": [{
+                "action": "Envoyer le planning",
+                "responsable": "Awa",
+                "echeance": None,
+                "statut": "décidée",
+            }],
+            "questions_ouvertes": [],
+            "risques_blocages": [],
+            "incertitudes": [],
+        }],
+    },
 }
 SUMMARIES = MeetingContent.model_validate(CONTENT).summaries()
 
@@ -116,7 +132,7 @@ class MeetingPipelineTests(unittest.TestCase):
         self.enqueue()
         async def runner(payload, timeout):
             if payload["stage"] == "writing":
-                self.assertEqual(timeout, 30)
+                self.assertEqual(timeout, 150)
                 return SUMMARIES
             with self.sessions() as db:
                 saved = db.get(Meeting, 1)
@@ -298,7 +314,7 @@ class ModelBoundaryTests(unittest.TestCase):
     def test_long_transcription_timeout_scales_by_ten_minute_chunks(self):
         self.assertEqual(stage_timeout("transcribing", 60), 1440)
         self.assertEqual(stage_timeout("transcribing", 2469), 2160)
-        self.assertEqual(stage_timeout("writing", 2469), 30)
+        self.assertEqual(stage_timeout("writing", 2469), 150)
 
     @patch("processing_task._split_audio")
     @patch("transcription_service.transcribe_audio_with_segments")
@@ -364,15 +380,15 @@ class ModelBoundaryTests(unittest.TestCase):
             with self.assertRaises(ValidationError):
                 MeetingContent.model_validate_json(invalid)
         value = json.loads(json.dumps(CONTENT))
-        value['report'].pop('decisions')
+        value['report']['sujets'][0].pop('decisions')
         with self.assertRaises(ValidationError):
             MeetingContent.model_validate(value)
 
     def test_model_config_deduplicates_and_keeps_all_fallbacks(self):
         with patch.dict(os.environ, {"OPENROUTER_MODEL_ID": "o*/nvidia/test", "MISTRAL_MODEL_ID": "mistral/test", "MISTRAL_MODEL_ID2": "third"}, clear=True):
-            self.assertEqual(configured_models(), ['mistral/test', 'third', 'openrouter/nvidia/test'])
+            self.assertEqual(configured_models(), ['mistral/test', 'third'])
         with patch.dict(os.environ, {"SUMMARY_MODEL_IDS": "o*/nvidia/test,mistral-small-2603,mistral/ignored"}, clear=True):
-            self.assertEqual(configured_models(), ['openrouter/nvidia/test', 'mistral/mistral-small-2603', 'mistral/ignored'])
+            self.assertEqual(configured_models(), ['openrouter/nvidia/test', 'mistral/mistral-small-2603'])
 
     def test_free_model_uses_validated_json_without_unsupported_json_mode(self):
         answer = SimpleNamespace(choices=[SimpleNamespace(finish_reason="stop", message=SimpleNamespace(
@@ -386,7 +402,9 @@ class ModelBoundaryTests(unittest.TestCase):
         self.assertEqual(result, SUMMARIES)
         arguments = completion.call_args.kwargs
         self.assertNotIn("response_format", arguments)
-        self.assertEqual(arguments["max_tokens"], 3000)
+        self.assertEqual(arguments["max_tokens"], 8000)
+        self.assertEqual(arguments["temperature"], 0)
+        self.assertEqual(arguments["timeout"], 120)
         self.assertEqual(arguments["num_retries"], 0)
 
     def test_mistral_uses_json_mode_and_rejects_incomplete_response(self):

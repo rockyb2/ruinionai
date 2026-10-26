@@ -360,19 +360,29 @@ class BuildWord(Tool):
             for part in line.split("|"):
                 part = part.strip().strip("*")
                 match = re.match(
-                    r"^(action|tâche|tache|responsable|échéance|echeance)\s*:\s*(.*)$",
+                    r"^(action|tâche|tache|responsable|échéance|echeance|statut|status)\s*:\s*(.*)$",
                     part,
                     flags=re.IGNORECASE,
                 )
                 if match:
                     name = unicodedata.normalize("NFKD", match.group(1)).encode("ascii", "ignore").decode("ascii").lower()
-                    key = "action" if name in {"action", "tache"} else "deadline" if name == "echeance" else "owner"
+                    key = (
+                        "action" if name in {"action", "tache"}
+                        else "deadline" if name == "echeance"
+                        else "status" if name in {"statut", "status"}
+                        else "owner"
+                    )
                     fields[key] = match.group(2).strip()
                 elif part and "action" not in fields:
                     fields["action"] = part
             action = fields.get("action", "")
             if action and not BuildWord._meeting_missing(action):
-                rows.append((action, fields.get("owner") or "Non précisé", fields.get("deadline") or "Non précisée"))
+                rows.append((
+                    action,
+                    fields.get("owner") or "Non précisé",
+                    fields.get("deadline") or "Non précisée",
+                    fields.get("status") or "Non précisé",
+                ))
         return rows
 
     @staticmethod
@@ -464,12 +474,12 @@ class BuildWord(Tool):
         actions = self._meeting_action_rows(sections.get("actions", ""))
         if actions:
             table = self._create_table(doc, {
-                "headers": ["Action", "Responsable", "Échéance"],
+                "headers": ["Action", "Responsable", "Échéance", "Statut"],
                 "rows": actions,
                 "styles": {
                     "table_style": "Table Grid",
                     "header_style": {"bold": True, "background": "EAF1FC", "color": "1C4897"},
-                    "column_widths": [3.5, 1.5, 1.5],
+                    "column_widths": [3.1, 1.3, 1.3, 1.0],
                 },
             })
             table.rows[0]._tr.get_or_add_trPr().append(OxmlElement("w:tblHeader"))

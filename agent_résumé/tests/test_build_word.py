@@ -21,7 +21,7 @@ Le projet a été présenté à l'équipe.
 3. Décisions prises
 - Le calendrier est approuvé.
 4. Actions à faire
-- Action : Envoyer le planning | Responsable : Awa | Échéance : 15 octobre
+- Action : Envoyer le planning | Responsable : Awa | Échéance : 15 octobre | Statut : décidée
 5. Questions ouvertes
 Non précisé
 6. Risques ou blocages
@@ -46,8 +46,8 @@ Non précisé"""
             self.assertIn("Génuka", text)
             self.assertIn("Le calendrier de lancement est validé.", text)
             self.assertIn("Le calendrier est approuvé.", text)
-            self.assertEqual(["Action", "Responsable", "Échéance"], [cell.text for cell in document.tables[0].rows[0].cells])
-            self.assertEqual(["Envoyer le planning", "Awa", "15 octobre"], [cell.text for cell in document.tables[0].rows[1].cells])
+            self.assertEqual(["Action", "Responsable", "Échéance", "Statut"], [cell.text for cell in document.tables[0].rows[0].cells])
+            self.assertEqual(["Envoyer le planning", "Awa", "15 octobre", "décidée"], [cell.text for cell in document.tables[0].rows[1].cells])
             self.assertIn("RAI-00042", document.sections[0].footer.paragraphs[0].text)
             self.assertNotIn("Transcription source", text)
 

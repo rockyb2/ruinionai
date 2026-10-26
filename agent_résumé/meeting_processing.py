@@ -22,7 +22,7 @@ from meeting_crypto import (
 logger = logging.getLogger(__name__)
 RUNNING = ("preparing", "transcribing", "writing", "building")
 ACTIVE = ("queued", *RUNNING)
-TIMEOUTS = {"preparing": 330, "transcribing": 90, "writing": 30, "building": 60}
+TIMEOUTS = {"preparing": 330, "transcribing": 90, "writing": 150, "building": 60}
 TRANSCRIPTION_CHUNK_SECONDS = 10 * 60
 ELEVENLABS_ATTEMPT_TIMEOUT_SECONDS = 600
 TRANSCRIPTION_ATTEMPTS_PER_PROVIDER = 2
