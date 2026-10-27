@@ -3,10 +3,12 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowUpRight, CalendarDays, FileText, Headphones, LoaderCircle, Plus, Search, Users } from '@lucide/vue'
 import { listMeetings } from '@/service/api'
+import { useStartNewMeeting } from '@/composables/useStartNewMeeting'
 import MeetingDetail from '@/components/MeetingDetail.vue'
 import { formatMeetingDate, formatTime, isProcessing, statusLabel } from '@/utils/meeting'
 
 const route = useRoute()
+const startNewMeeting = useStartNewMeeting()
 const router = useRouter()
 const meetings = ref([])
 const searchQuery = ref(typeof route.query.q === 'string' ? route.query.q : '')
@@ -86,7 +88,7 @@ onUnmounted(() => { disposed = true; clearTimeout(timer) })
         <h1 class="mt-2 text-2xl font-black tracking-tight text-slate-900">Historique des réunions</h1>
         <p class="mt-2 text-sm text-slate-500">Vos échanges, vos décisions et vos enregistrements, au même endroit.</p>
       </div>
-      <RouterLink to="/réunion" class="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-blue-100 hover:bg-blue-700"><Plus class="h-4 w-4" /> Nouvelle réunion</RouterLink>
+      <button type="button" class="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-blue-100 hover:bg-blue-700" @click="startNewMeeting"><Plus class="h-4 w-4" /> Nouvelle réunion</button>
     </header>
 
     <div class="mt-7 flex flex-col justify-between gap-4 border-b border-slate-100 pb-5 2xl:flex-row 2xl:items-center">

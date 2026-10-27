@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { RouterLink, RouterView, useRouter } from 'vue-router'
+import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import {
   Bell,
   CheckCheck,
@@ -23,6 +23,7 @@ import {
 } from '@/service/api'
 
 const router = useRouter()
+const route = useRoute()
 const session = ref(null)
 const recentMeetings = ref([])
 const isLoading = ref(true)
@@ -282,7 +283,7 @@ onBeforeUnmount(() => {
 
       <main class="min-w-0 p-4 sm:p-6">
         <div class="mx-auto w-full max-w-[1600px]">
-          <RouterView />
+          <RouterView :key="route.fullPath" />
         </div>
       </main>
     </div>

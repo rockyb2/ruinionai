@@ -11,6 +11,9 @@ import {
 } from '@lucide/vue'
 
 import logo from '@/assets/logo.png'
+import { useStartNewMeeting } from '@/composables/useStartNewMeeting'
+
+const startNewMeeting = useStartNewMeeting()
 
 defineProps({
   open: { type: Boolean, default: false },
@@ -19,7 +22,12 @@ defineProps({
   loading: { type: Boolean, default: false },
 })
 
-defineEmits(['close'])
+const emit = defineEmits(['close'])
+
+async function handleNewMeeting() {
+  emit('close')
+  await startNewMeeting()
+}
 
 const navItems = [
   { name: 'historique', label: 'Historique', icon: Clock3 },
@@ -60,14 +68,14 @@ function formatMeetingDate(value) {
       </button>
     </div>
 
-    <RouterLink
-      :to="{ name: 'reunion' }"
+    <button
+      type="button"
       class="mt-6 flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700"
-      @click="$emit('close')"
+      @click="handleNewMeeting"
     >
       <Plus class="h-5 w-5" />
       Nouvelle réunion
-    </RouterLink>
+    </button>
 
     <nav class="mt-6 space-y-1" aria-label="Sections">
       <RouterLink
