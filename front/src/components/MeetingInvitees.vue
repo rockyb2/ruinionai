@@ -56,7 +56,7 @@ onBeforeUnmount(() => { ++requestId; clearTimeout(searchTimer) })
 </script>
 
 <template>
-  <fieldset class="mt-6 min-w-0" :disabled="disabled">
+  <fieldset data-tour="meeting-participants" class="mt-6 min-w-0" :disabled="disabled">
     <legend class="flex items-center gap-2 text-sm font-black text-slate-700">
       <Users class="h-4 w-4 text-blue-600" /> Inviter des membres de l’équipe
       <span class="font-semibold text-slate-400">(facultatif)</span>

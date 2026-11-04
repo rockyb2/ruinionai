@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 
 os.environ.setdefault("DATABASE_URL", "sqlite://")
@@ -25,6 +26,7 @@ from models import AuditLog, User
 
 class SecurityTests(unittest.TestCase):
     def setUp(self):
+        os.environ["PUBLIC_REGISTRATION_ENABLED"] = "false"
         self.temp = tempfile.TemporaryDirectory()
         self.engine = create_engine(
             f"sqlite:///{Path(self.temp.name) / 'security.db'}",
@@ -41,6 +43,7 @@ class SecurityTests(unittest.TestCase):
                     email="awa@example.com",
                     password_hash=hash_password("MotDePasseSolide1!"),
                     is_active=True,
+                    email_verified_at=datetime.utcnow(),
                     token_version=0,
                 )
             )
@@ -95,6 +98,30 @@ class SecurityTests(unittest.TestCase):
             },
         )
         self.assertEqual(response.status_code, 403, response.text)
+
+    def test_onboarding_progress_can_be_saved_and_reset(self):
+        token = create_access_token("1", 0)
+        headers = {"Authorization": f"Bearer {token}"}
+        updated = self.client.patch(
+            "/auth/onboarding",
+            headers=headers,
+            json={"steps": {"navigation": True}, "dismissed": True},
+        )
+        self.assertEqual(updated.status_code, 200, updated.text)
+        self.assertTrue(updated.json()["steps"]["navigation"])
+        self.assertIsNotNone(updated.json()["dismissed_at"])
+
+        invalid = self.client.patch(
+            "/auth/onboarding",
+            headers=headers,
+            json={"steps": {"unknown": True}},
+        )
+        self.assertEqual(invalid.status_code, 422, invalid.text)
+
+        reset = self.client.post("/auth/onboarding/reset", headers=headers)
+        self.assertEqual(reset.status_code, 200, reset.text)
+        self.assertEqual(reset.json()["steps"], {})
+        self.assertIsNone(reset.json()["dismissed_at"])
 
     def test_login_is_rate_limited_by_network_identifier(self):
         statuses = []

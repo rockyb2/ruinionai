@@ -1,7 +1,7 @@
 from datetime import datetime
 from hashlib import sha256
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -23,6 +23,7 @@ from schema import (
     OrganizationRead,
     UserRead,
 )
+from services.email_verification_service import deliver_welcome_email
 
 
 router = APIRouter(prefix="/invitations", tags=["invitations"])
@@ -156,6 +157,7 @@ def register_from_invitation(
     request: Request,
     payload: InvitationRegister,
     response: Response,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     try:
@@ -168,13 +170,15 @@ def register_from_invitation(
         if existing_user is not None:
             raise HTTPException(409, "Un compte existe deja. Connectez-vous pour accepter.")
 
+        now = datetime.utcnow()
         user = User(
             first_name=payload.first_name,
             last_name=payload.last_name,
             email=invitation.email,
             password_hash=hash_password(payload.password),
             is_active=True,
-            accepted_terms_at=datetime.utcnow(),
+            email_verified_at=now,
+            accepted_terms_at=now,
             accepted_terms_version=CURRENT_TERMS_VERSION,
         )
         db.add(user)
@@ -189,5 +193,10 @@ def register_from_invitation(
         db.rollback()
         raise
 
+    background_tasks.add_task(
+        deliver_welcome_email,
+        user.email,
+        user.first_name,
+    )
     response.headers["Cache-Control"] = "no-store"
     return result

@@ -11,6 +11,7 @@ import PolitiqueConfidentialite from '../views/PolitiqueConfidentialite.vue'
 import Reunion from '../views/Reunion.vue'
 import Setting from '../views/Setting.vue'
 import Signin from '../views/Signin.vue'
+import VerifyEmail from '../views/VerifyEmail.vue'
 import { isAuthenticated } from '../service/api'
 
 const routes = [
@@ -78,6 +79,12 @@ const routes = [
     name: 'signin',
     component: Signin,
     meta: { guestOnly: true, title: 'Créer un compte' },
+  },
+  {
+    path: '/verifier-email',
+    name: 'verify-email',
+    component: VerifyEmail,
+    meta: { title: "Vérification de l'adresse e-mail" },
   },
 
   // route administration

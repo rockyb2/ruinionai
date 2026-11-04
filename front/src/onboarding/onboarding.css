@@ -1,0 +1,74 @@
+.driver-popover.ruinion-driver-popover {
+  width: min(360px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  border: 1px solid #dbeafe;
+  border-radius: 18px;
+  padding: 20px;
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.22);
+}
+
+.driver-active-element {
+  scroll-margin: 96px;
+}
+
+@media (max-width: 640px) {
+  .driver-popover.ruinion-driver-popover {
+    padding: 16px;
+  }
+}
+
+.ruinion-driver-popover .driver-popover-title {
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+}
+
+.ruinion-driver-popover .driver-popover-description {
+  margin-top: 8px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.65;
+}
+
+.ruinion-driver-popover .driver-popover-progress-text {
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.ruinion-driver-popover button {
+  border: 0;
+  border-radius: 10px;
+  padding: 9px 14px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  text-shadow: none;
+}
+
+.ruinion-driver-popover .driver-popover-next-btn {
+  color: white;
+  background: #2563eb;
+}
+
+.ruinion-driver-popover .driver-popover-prev-btn {
+  color: #475569;
+  background: #f1f5f9;
+}
+
+.ruinion-driver-popover .driver-popover-close-btn {
+  color: #94a3b8;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .driver-active .driver-overlay,
+  .driver-active .driver-popover,
+  .driver-active-element {
+    transition: none !important;
+  }
+}

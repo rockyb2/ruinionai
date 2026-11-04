@@ -7,7 +7,7 @@ from pydantic import (
     computed_field,
     field_validator,
 )
-from typing import List, Literal, Optional
+from typing import Dict, List, Literal, Optional
 from datetime import datetime
 
 
@@ -15,6 +15,18 @@ OrganizationRole = Literal["owner", "admin", "member"]
 AssignableOrganizationRole = Literal["admin", "member"]
 OrganizationMemberStatus = Literal["active", "inactive"]
 CURRENT_TERMS_VERSION = "2026-10-12"
+ONBOARDING_VERSION = 1
+ONBOARDING_STEP_IDS = {
+    "navigation",
+    "organization_profile",
+    "create_meeting",
+    "invite_participants",
+    "add_audio",
+    "generate_report",
+    "view_history",
+    "download_report",
+    "invite_team",
+}
 
 
 class UserCreate(BaseModel):
@@ -37,6 +49,34 @@ class UserRead(BaseModel):
     updated_at: Optional[datetime] = None
     accepted_terms_at: Optional[datetime] = None
     accepted_terms_version: Optional[str] = None
+    email_verified_at: Optional[datetime] = None
+    onboarding_version: int = ONBOARDING_VERSION
+    onboarding_steps: Dict[str, bool] = Field(default_factory=dict)
+    onboarding_completed_at: Optional[datetime] = None
+    onboarding_dismissed_at: Optional[datetime] = None
+
+
+class OnboardingStateRead(BaseModel):
+    version: int
+    steps: Dict[str, bool]
+    completed_at: Optional[datetime] = None
+    dismissed_at: Optional[datetime] = None
+
+
+class OnboardingStateUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    steps: Dict[str, bool] = Field(default_factory=dict)
+    dismissed: Optional[bool] = None
+    completed: Optional[bool] = None
+
+    @field_validator("steps")
+    @classmethod
+    def validate_onboarding_steps(cls, value: Dict[str, bool]) -> Dict[str, bool]:
+        unknown = set(value) - ONBOARDING_STEP_IDS
+        if unknown:
+            raise ValueError("Etape d'onboarding inconnue.")
+        return value
 
 
 class OrganizationCreate(BaseModel):
@@ -247,6 +287,29 @@ class RegisterRequest(BaseModel):
         if len(value.encode("utf-8")) > 72:
             raise ValueError("Le mot de passe ne peut pas dépasser 72 octets.")
         return value
+
+
+class RegistrationPendingResponse(BaseModel):
+    message: str
+    email: EmailStr
+    verification_required: bool = True
+
+
+class EmailVerificationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: str = Field(min_length=32, max_length=256)
+
+
+class ResendEmailVerificationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailStr = Field(max_length=255)
+
+
+class EmailVerificationResponse(BaseModel):
+    message: str
+    verified: bool
 
 
 class LoginRequest(BaseModel):

@@ -64,18 +64,32 @@ async function parseApiError(response, fallbackMessage) {
     const data = await response.json()
 
     if (response.status === 429) {
-      return 'Trop de tentatives. Patientez trois minutes avant de réessayer.'
+      return {
+        message: 'Trop de tentatives. Patientez quelques minutes avant de réessayer.',
+      }
     }
 
     if (Array.isArray(data.detail)) {
-      return data.detail
-        .map((item) => item.msg || item.message || fallbackMessage)
-        .join(' ')
+      return {
+        message: data.detail
+          .map((item) => item.msg || item.message || fallbackMessage)
+          .join(' '),
+      }
     }
 
-    return data.detail || data.message || data.error || fallbackMessage
+    if (data.detail && typeof data.detail === 'object') {
+      return {
+        message: data.detail.message || fallbackMessage,
+        code: data.detail.code,
+      }
+    }
+
+    return {
+      message: data.detail || data.message || data.error || fallbackMessage,
+      code: data.code,
+    }
   } catch {
-    return fallbackMessage
+    return { message: fallbackMessage }
   }
 }
 
@@ -85,8 +99,10 @@ async function requestJson(response, fallbackMessage) {
       clearAuthToken()
     }
 
-    const error = new Error(await parseApiError(response, fallbackMessage))
+    const parsedError = await parseApiError(response, fallbackMessage)
+    const error = new Error(parsedError.message)
     error.status = response.status
+    error.code = parsedError.code
     throw error
   }
 
@@ -127,8 +143,8 @@ export async function apiRequest(path, options = {}, fallbackMessage = 'Une erre
   return requestJson(response, fallbackMessage)
 }
 
-export async function registerUser(data, remember = true) {
-  const response = await apiRequest(
+export async function registerUser(data) {
+  return apiRequest(
     '/auth/register',
     {
       method: 'POST',
@@ -138,9 +154,30 @@ export async function registerUser(data, remember = true) {
     'Impossible de creer le compte.',
   )
 
-  setAuthToken(response.access_token, remember)
-  setOrganizationContext(response.organization?.id)
-  return response
+}
+
+export async function verifyEmail(token) {
+  return apiRequest(
+    '/auth/verify-email',
+    {
+      method: 'POST',
+      auth: false,
+      body: { token },
+    },
+    "Impossible de vérifier l'adresse e-mail.",
+  )
+}
+
+export async function resendVerificationEmail(email) {
+  return apiRequest(
+    '/auth/resend-verification',
+    {
+      method: 'POST',
+      auth: false,
+      body: { email },
+    },
+    "Impossible de renvoyer l'e-mail de vérification.",
+  )
 }
 
 export async function loginUser(data, remember = true) {
@@ -176,6 +213,22 @@ export async function getCurrentUser() {
   const response = await apiRequest('/auth/me', {}, 'Session invalide.')
   setOrganizationContext(response.organization?.id)
   return response
+}
+
+export async function updateOnboardingState(data) {
+  return apiRequest(
+    '/auth/onboarding',
+    { method: 'PATCH', organization: false, body: data },
+    'Impossible de sauvegarder la progression du tutoriel.',
+  )
+}
+
+export async function resetOnboardingState() {
+  return apiRequest(
+    '/auth/onboarding/reset',
+    { method: 'POST', organization: false },
+    'Impossible de réinitialiser le tutoriel.',
+  )
 }
 
 export async function acceptOrganizationInvitation(token) {

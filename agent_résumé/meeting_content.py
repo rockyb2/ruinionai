@@ -78,11 +78,11 @@ class MeetingContent(ContentModel):
                 bullets(subject.incertitudes),
             ]))
             decisions.extend(
-                f"[{subject.titre}] {decision}" for decision in subject.decisions
+                f"Dossier : {subject.titre} — {decision}" for decision in subject.decisions
             )
             actions.extend(
                 " | ".join([
-                    f"Action : [{subject.titre}] {item.action}",
+                    f"Action : {item.action} — Dossier : {subject.titre}",
                     f"Responsable : {item.responsable or 'Non précisé'}",
                     f"Échéance : {item.echeance or 'Non précisée'}",
                     f"Statut : {item.statut}",
@@ -90,11 +90,11 @@ class MeetingContent(ContentModel):
                 for item in subject.actions
             )
             questions.extend(
-                f"[{subject.titre}] {question}"
+                f"Dossier : {subject.titre} — {question}"
                 for question in subject.questions_ouvertes
             )
             risks.extend(
-                f"[{subject.titre}] {risk}" for risk in subject.risques_blocages
+                f"Dossier : {subject.titre} — {risk}" for risk in subject.risques_blocages
             )
 
         sections = [

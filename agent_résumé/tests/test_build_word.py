@@ -64,6 +64,35 @@ Non précisé"""
             self.assertIn("Les participants ont discuté du calendrier.", text)
             self.assertEqual([], document.tables)
 
+    def test_meeting_report_formats_dossier_labels_and_markdown_bold(self):
+        body = """RESUME_COURT:
+Un **point essentiel** a été validé.
+COMPTE_RENDU_DETAILLE:
+2. Points importants
+Dossier : Résolution des problèmes financiers avec un client (Golf)
+Contexte : Une facture reste à valider.
+Points discutés :
+- Le **montant final** doit être confirmé.
+3. Décisions prises
+- [Golf] Envoyer le relevé bancaire."""
+
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"REPORTS_DIR": directory}):
+            BuildWord().forward(title="Suivi Golf", body=body, filename="meeting-9-golf")
+            document = Document(Path(directory) / "meeting-9-golf.docx")
+            paragraphs = document.paragraphs
+            dossier = next(p for p in paragraphs if p.text.startswith("Dossier : Résolution"))
+            context = next(p for p in paragraphs if p.text.startswith("Contexte :"))
+            legacy = next(p for p in paragraphs if p.text.startswith("Dossier : Golf"))
+            strong = next(run for p in paragraphs for run in p.runs if run.text == "montant final")
+
+            self.assertTrue(dossier.runs[0].bold)
+            self.assertTrue(dossier.runs[0].underline)
+            self.assertGreater(dossier.runs[0].font.size.pt, 11)
+            self.assertTrue(context.runs[0].bold)
+            self.assertTrue(context.runs[0].underline)
+            self.assertNotIn("[Golf]", legacy.text)
+            self.assertTrue(strong.bold)
+
     def test_other_documents_keep_generic_word_format(self):
         with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"REPORTS_DIR": directory}):
             result = BuildWord().forward(title="Lettre de suivi", body="Bonjour.", filename="lettre")

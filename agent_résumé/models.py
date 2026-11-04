@@ -30,6 +30,11 @@ class User(Base):
     locked_until = Column(DateTime, nullable=True)
     accepted_terms_at = Column(DateTime, nullable=True)
     accepted_terms_version = Column(String(20), nullable=True)
+    email_verified_at = Column(DateTime, nullable=True, index=True)
+    onboarding_version = Column(Integer, nullable=False, default=1, server_default="1")
+    onboarding_steps = Column(JSON, nullable=False, default=dict, server_default="{}")
+    onboarding_completed_at = Column(DateTime, nullable=True)
+    onboarding_dismissed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -50,6 +55,35 @@ class User(Base):
         back_populates="user",
         passive_deletes=True,
     )
+    email_verification_tokens = relationship(
+        "EmailVerificationToken",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+
+class EmailVerificationToken(Base):
+    __tablename__ = "email_verification_tokens"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # Seule l'empreinte SHA-256 du jeton envoye par e-mail est conservee.
+    token_hash = Column(String(64), nullable=False, unique=True, index=True)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    used_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    user = relationship(
+        "User",
+        back_populates="email_verification_tokens",
+    )
+
 
 class Organization(Base):
     __tablename__ = "organizations"

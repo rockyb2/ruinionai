@@ -1,6 +1,7 @@
 <script setup>
+import { computed } from 'vue'
 import {
-  Building2,
+  ChevronDown,
   ChevronRight,
   Clock3,
   FileText,
@@ -12,17 +13,33 @@ import {
 
 import logo from '@/assets/logo.png'
 import { useStartNewMeeting } from '@/composables/useStartNewMeeting'
+import OnboardingChecklist from '@/components/OnboardingChecklist.vue'
 
 const startNewMeeting = useStartNewMeeting()
 
-defineProps({
+const props = defineProps({
   open: { type: Boolean, default: false },
-  organization: { type: Object, default: null },
+  user: { type: Object, default: null },
+  role: { type: String, default: 'member' },
   recentMeetings: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'logout', 'restart-onboarding'])
+
+const userName = computed(() =>
+  [props.user?.first_name, props.user?.last_name].filter(Boolean).join(' ') || 'Utilisateur',
+)
+const initials = computed(() => {
+  const first = props.user?.first_name?.[0] || ''
+  const last = props.user?.last_name?.[0] || ''
+  return `${first}${last}`.toUpperCase() || 'UA'
+})
+const roleLabel = computed(() => ({
+  owner: 'Propriétaire',
+  admin: 'Administrateur',
+  member: 'Membre',
+})[props.role?.toLowerCase()] || 'Membre')
 
 async function handleNewMeeting() {
   emit('close')
@@ -53,9 +70,9 @@ function formatMeetingDate(value) {
     :class="open ? 'translate-x-0' : '-translate-x-full'"
     aria-label="Navigation principale"
   >
-    <div class="flex items-center justify-center px-2">
+    <div class="flex items-center justify-between px-2">
       <RouterLink :to="{ name: 'reunion' }" @click="$emit('close')">
-        <img :src="logo" alt="Ruinion AI" class="h-20 w-auto object-contain" />
+        <img :src="logo" alt="Ruinion AI" class="h-16 w-auto object-contain" />
       </RouterLink>
 
       <button
@@ -69,19 +86,21 @@ function formatMeetingDate(value) {
     </div>
 
     <button
+      data-tour="sidebar-new-meeting"
       type="button"
-      class="mt-6 flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700"
+      class="mt-4 flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700"
       @click="handleNewMeeting"
     >
       <Plus class="h-5 w-5" />
       Nouvelle réunion
     </button>
 
-    <nav class="mt-6 space-y-1" aria-label="Sections">
+    <nav class="mt-4 space-y-1" aria-label="Sections">
       <RouterLink
         v-for="item in navItems"
         :key="item.name"
         :to="{ name: item.name }"
+        :data-tour="`sidebar-${item.name === 'equipe' ? 'team' : item.name === 'historique' ? 'history' : 'settings'}`"
         class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-950"
         active-class="bg-blue-50 text-blue-700"
         @click="$emit('close')"
@@ -128,21 +147,38 @@ function formatMeetingDate(value) {
       <p v-else class="px-3 py-4 text-sm text-slate-400">Aucune réunion récente.</p>
     </section>
 
-    <RouterLink
-      :to="{ name: 'setting' }"
-      class="mt-5 flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-blue-200 hover:bg-blue-50"
-      @click="$emit('close')"
-    >
-      <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white">
-        <Building2 class="h-5 w-5" />
-      </span>
-      <span class="min-w-0 flex-1">
-        <span class="block truncate text-sm font-bold text-slate-900">
-          {{ organization?.name || 'Mon organisation' }}
+    <OnboardingChecklist v-if="user" :key="user.id" :user="user" :role="role" class="mt-3" />
+
+    <details v-if="user" data-tour="profile-menu" class="group relative mt-3 shrink-0 border-t border-slate-200 pt-3">
+      <summary class="flex list-none items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-slate-100">
+        <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-blue-600 text-sm font-black text-white">
+          {{ initials }}
         </span>
-        <span class="block text-xs text-slate-500">Organisation active</span>
-      </span>
-      <ChevronRight class="h-4 w-4 text-slate-400" />
-    </RouterLink>
+        <span class="min-w-0 flex-1 text-left">
+          <strong class="block truncate text-sm text-slate-800">{{ userName }}</strong>
+          <span class="block truncate text-[11px] font-medium text-slate-400">{{ user.email }}</span>
+        </span>
+        <ChevronRight class="h-4 w-4 text-slate-400 transition group-open:rotate-90" />
+      </summary>
+
+      <div class="absolute bottom-full left-0 right-0 z-20 mb-2 rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
+        <div class="flex items-start justify-between gap-2 px-2 py-2">
+          <div class="min-w-0">
+            <p class="truncate text-xs font-black text-slate-800">{{ userName }}</p>
+            <p class="mt-0.5 text-[10px] font-black uppercase tracking-wide text-blue-600">{{ roleLabel }}</p>
+          </div>
+          <ChevronDown class="h-4 w-4 text-slate-400" />
+        </div>
+        <RouterLink class="block rounded-lg px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50" :to="{ name: 'setting' }" @click="$emit('close')">
+          Paramètres
+        </RouterLink>
+        <button class="mt-0.5 w-full rounded-lg px-3 py-2 text-left text-xs font-bold text-blue-600 hover:bg-blue-50" type="button" @click="$emit('restart-onboarding', $event)">
+          Revoir le tutoriel
+        </button>
+        <button class="mt-0.5 w-full rounded-lg px-3 py-2 text-left text-xs font-bold text-red-600 hover:bg-red-50" type="button" @click="$emit('logout')">
+          Se déconnecter
+        </button>
+      </div>
+    </details>
   </aside>
 </template>

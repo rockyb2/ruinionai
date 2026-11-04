@@ -32,7 +32,6 @@ const email = ref('')
 const password = ref('')
 const confirmPassword = ref('')
 const termsAccepted = ref(false)
-const rememberMe = ref(true)
 const showPassword = ref(false)
 const showConfirmPassword = ref(false)
 const isSubmitting = ref(false)
@@ -82,19 +81,20 @@ async function handleSignup() {
     isSubmitting.value = true
     errorMessage.value = ''
 
-    await registerUser(
-      {
-        first_name: firstName.value,
-        last_name: lastName.value,
-        organization_name: organizationName.value,
-        email: email.value,
-        password: password.value,
-        terms_accepted: termsAccepted.value,
-      },
-      rememberMe.value,
-    )
+    await registerUser({
+      first_name: firstName.value,
+      last_name: lastName.value,
+      organization_name: organizationName.value,
+      email: email.value,
+      password: password.value,
+      terms_accepted: termsAccepted.value,
+    })
 
-    router.push('/réunion')
+    window.sessionStorage.setItem(
+      'ruinionai.pending_verification_email',
+      email.value.trim().toLowerCase(),
+    )
+    router.push({ name: 'verify-email' })
   } catch (error) {
     showError(error.message || 'Inscription impossible pour le moment.')
   } finally {
@@ -298,15 +298,6 @@ async function handleSignup() {
               </span>
             </label>
           </div>
-
-          <label class="mt-5 flex cursor-pointer items-center gap-3 text-sm font-semibold text-slate-500">
-            <input
-              v-model="rememberMe"
-              class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-              type="checkbox"
-            />
-            Rester connecté
-          </label>
 
           <label class="mt-4 flex cursor-pointer items-start gap-3 text-sm font-semibold leading-6 text-slate-600">
             <input v-model="termsAccepted" class="mt-1 h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500" type="checkbox" required />

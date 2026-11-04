@@ -112,6 +112,9 @@ async function saveSettings() {
         detail: { name: settings.value.name },
       }),
     )
+    window.dispatchEvent(new CustomEvent('ruinion-onboarding-complete', {
+      detail: { step: 'organization_profile' },
+    }))
   } catch (error) {
     errorMessage.value = error.status
       ? (error.message || 'Impossible d’enregistrer les paramètres.')
@@ -173,7 +176,7 @@ onMounted(loadSettings)
 
     <form v-else class="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]" @submit.prevent="saveSettings">
       <div class="space-y-6">
-        <article class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <article data-tour="organization-settings" class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div class="flex items-start gap-4">
             <span class="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-600">
               <Building2 class="h-6 w-6" />
@@ -387,6 +390,7 @@ onMounted(loadSettings)
 
         <button
           v-if="isOwner"
+          data-tour="organization-save"
           class="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
           type="submit"
           :disabled="isSaving"

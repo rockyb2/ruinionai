@@ -1,17 +1,16 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
+import { RouterView, useRoute, useRouter } from 'vue-router'
 import {
   Bell,
   CheckCheck,
-  ChevronDown,
   LoaderCircle,
   Menu,
-  Search,
   X,
 } from '@lucide/vue'
 
 import SideBar from '../components/SideBar.vue'
+import { useOnboardingStore } from '@/stores/onboarding'
 import {
   getCurrentUser,
   listMeetings,
@@ -24,11 +23,11 @@ import {
 
 const router = useRouter()
 const route = useRoute()
+const onboarding = useOnboardingStore()
 const session = ref(null)
 const recentMeetings = ref([])
 const isLoading = ref(true)
 const mobileMenuOpen = ref(false)
-const globalSearch = ref('')
 const notificationDialog = ref(null)
 const notifications = ref([])
 const notificationTotal = ref(0)
@@ -39,22 +38,9 @@ const notificationsError = ref('')
 const user = computed(() => session.value?.user)
 const organization = computed(() => session.value?.organization)
 const role = computed(() => session.value?.role)
-const roleLabel = computed(() => ({
-  owner: 'Propriétaire',
-  admin: 'Administrateur',
-  member: 'Membre',
-})[role.value?.toLowerCase()] || 'Membre')
 const canSeeNotifications = computed(() => Boolean(organization.value))
 const canSyncTeamInvitations = computed(() => ['owner', 'admin'].includes(role.value))
 let notificationTimer
-const userName = computed(() =>
-  [user.value?.first_name, user.value?.last_name].filter(Boolean).join(' ') || 'Utilisateur',
-)
-const initials = computed(() => {
-  const first = user.value?.first_name?.[0] || ''
-  const last = user.value?.last_name?.[0] || ''
-  return `${first}${last}`.toUpperCase() || 'UA'
-})
 
 function formatNotificationDate(value) {
   if (!value) return ''
@@ -133,17 +119,14 @@ async function readAllNotifications() {
   }
 }
 
-function submitSearch() {
-  const query = globalSearch.value.trim()
-  router.push({
-    name: 'historique',
-    query: query ? { q: query } : {},
-  })
-}
-
 async function handleLogout() {
   await logoutUser()
   await router.push('/connexion')
+}
+
+async function restartOnboarding(event) {
+  event.currentTarget.closest('details')?.removeAttribute('open')
+  await onboarding.reset()
 }
 
 function handleOrganizationUpdated(event) {
@@ -210,14 +193,17 @@ onBeforeUnmount(() => {
 
     <SideBar
       :open="mobileMenuOpen"
-      :organization="organization"
+      :user="user"
+      :role="role"
       :recent-meetings="recentMeetings"
       :loading="isLoading"
       @close="mobileMenuOpen = false"
+      @logout="handleLogout"
+      @restart-onboarding="restartOnboarding"
     />
 
     <div class="min-h-screen lg:pl-72">
-      <header class="sticky top-0 z-30 flex h-20 items-center gap-4 border-b border-slate-200 bg-white/95 px-4 backdrop-blur sm:px-6">
+      <header class="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-slate-200 bg-white/95 px-4 backdrop-blur sm:px-6">
         <button
           class="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 text-slate-600 lg:hidden"
           type="button"
@@ -227,19 +213,10 @@ onBeforeUnmount(() => {
           <Menu class="h-5 w-5" />
         </button>
 
-        <form class="relative w-full max-w-xl" @submit.prevent="submitSearch">
-          <Search class="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-          <input
-            v-model="globalSearch"
-            class="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-12 pr-4 text-sm font-semibold outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-            type="search"
-            placeholder="Rechercher une réunion…"
-          />
-        </form>
-
         <div class="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
           <button
             v-if="canSeeNotifications"
+            data-tour="notifications"
             class="relative grid h-11 w-11 place-items-center rounded-xl border border-slate-200 text-slate-600 transition hover:bg-blue-50 hover:text-blue-600"
             type="button"
             aria-label="Notifications"
@@ -254,30 +231,6 @@ onBeforeUnmount(() => {
             </span>
           </button>
 
-          <details class="relative">
-            <summary class="flex cursor-pointer list-none items-center gap-3 rounded-xl px-2 py-1.5 transition hover:bg-slate-50">
-              <span class="grid h-10 w-10 place-items-center rounded-full bg-blue-600 text-sm font-black text-white">
-                {{ initials }}
-              </span>
-              <span class="hidden min-w-0 max-w-44 text-left sm:block">
-                <strong class="block truncate text-sm text-slate-800">{{ userName }}</strong>
-                <span class="block truncate text-xs text-slate-500">{{ organization?.name }}</span>
-              </span>
-              <ChevronDown class="hidden h-4 w-4 text-slate-400 sm:block" />
-            </summary>
-
-            <div class="absolute right-0 mt-3 w-64 rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
-              <p class="truncate text-sm font-black text-slate-800">{{ userName }}</p>
-              <p class="mt-1 truncate text-xs text-slate-500">{{ user?.email }}</p>
-              <p class="mt-3 text-xs font-black uppercase text-blue-600">{{ roleLabel }}</p>
-              <RouterLink class="mt-3 block rounded-lg px-3 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50" to="/paramètres">
-                Paramètres
-              </RouterLink>
-              <button class="mt-1 w-full rounded-lg px-3 py-2 text-left text-sm font-bold text-red-600 hover:bg-red-50" type="button" @click="handleLogout">
-                Se déconnecter
-              </button>
-            </div>
-          </details>
         </div>
       </header>
 

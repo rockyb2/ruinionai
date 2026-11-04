@@ -332,22 +332,73 @@ class BuildWord(Tool):
         plain = plain.encode("ascii", "ignore").decode("ascii").lower()
         return plain in {"", "non precise", "aucun", "aucune"}
 
+    @staticmethod
+    def _add_formatted_runs(paragraph, text):
+        """Convertit le gras Markdown simple en vrais runs Word."""
+        cursor = 0
+        for match in re.finditer(r"\*\*(.+?)\*\*", text):
+            if match.start() > cursor:
+                paragraph.add_run(text[cursor:match.start()])
+            strong = paragraph.add_run(match.group(1))
+            strong.bold = True
+            cursor = match.end()
+        if cursor < len(text):
+            paragraph.add_run(text[cursor:])
+
+    def _add_meeting_paragraph(self, container, text, style=None):
+        paragraph = container.add_paragraph(style=style)
+        legacy = re.match(r"^\[([^\]]+)]\s*(.+)$", text)
+        if legacy:
+            text = f"Dossier : {legacy.group(1).strip()} — {legacy.group(2).strip()}"
+
+        dossier = re.match(r"^Dossier\s*:\s*(.+?)(?:\s+—\s+(.+))?$", text, flags=re.IGNORECASE)
+        if dossier:
+            label = paragraph.add_run(f"Dossier : {dossier.group(1).strip()}")
+            label.bold = True
+            label.underline = True
+            if dossier.group(2):
+                paragraph.add_run(" — ")
+                self._add_formatted_runs(paragraph, dossier.group(2).strip())
+            else:
+                label.font.size = Pt(12.5)
+                paragraph.paragraph_format.space_before = Pt(10)
+                paragraph.paragraph_format.space_after = Pt(5)
+                paragraph.paragraph_format.keep_with_next = True
+            return paragraph
+
+        labelled = re.match(
+            r"^(Contexte|Points discutés|Informations importantes|Propositions non validées|Incertitudes et contradictions)\s*:\s*(.*)$",
+            text,
+            flags=re.IGNORECASE,
+        )
+        if labelled:
+            label = paragraph.add_run(f"{labelled.group(1)} :")
+            label.bold = True
+            label.underline = True
+            if labelled.group(2):
+                paragraph.add_run(" ")
+                self._add_formatted_runs(paragraph, labelled.group(2))
+            return paragraph
+
+        self._add_formatted_runs(paragraph, text)
+        return paragraph
+
     def _add_meeting_lines(self, container, content):
         if self._meeting_missing(content):
             container.add_paragraph("Non précisé dans la transcription.")
             return
         for raw_line in content.splitlines():
-            line = raw_line.strip().strip("* ")
+            line = raw_line.strip()
             if not line:
                 continue
             bullet = re.match(r"^[-•]\s+(.+)$", line)
             numbered = re.match(r"^\d+[.)]\s+(.+)$", line)
             if bullet:
-                container.add_paragraph(bullet.group(1).strip(), style="List Bullet")
+                self._add_meeting_paragraph(container, bullet.group(1).strip(), style="List Bullet")
             elif numbered:
-                container.add_paragraph(numbered.group(1).strip(), style="List Number")
+                self._add_meeting_paragraph(container, numbered.group(1).strip(), style="List Number")
             else:
-                container.add_paragraph(line)
+                self._add_meeting_paragraph(container, line)
 
     @staticmethod
     def _meeting_action_rows(content):
@@ -376,6 +427,9 @@ class BuildWord(Tool):
                 elif part and "action" not in fields:
                     fields["action"] = part
             action = fields.get("action", "")
+            legacy = re.match(r"^\[([^\]]+)]\s*(.+)$", action)
+            if legacy:
+                action = f"{legacy.group(2).strip()} — Dossier : {legacy.group(1).strip()}"
             if action and not BuildWord._meeting_missing(action):
                 rows.append((
                     action,

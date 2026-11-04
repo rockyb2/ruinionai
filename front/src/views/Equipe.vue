@@ -226,6 +226,9 @@ async function submitInvitation() {
     copyMessage.value = ''
     email.value = ''
     notice.value = 'Invitation créée. Copiez le lien ci-dessous pour le partager.'
+    window.dispatchEvent(new CustomEvent('ruinion-onboarding-complete', {
+      detail: { step: 'invite_team' },
+    }))
     activeTab.value = 'invitations'
     search.value = ''
     await loadList('invitations', 0)
@@ -328,7 +331,7 @@ onBeforeUnmount(() => {
       <span aria-current="page">Équipe</span>
     </nav>
 
-    <header class="page-heading">
+    <header data-tour="team-page" class="page-heading">
       <div>
         <h1>Équipe</h1>
         <p>Gérez les membres de votre organisation et leurs accès à Ruinion AI.</p>
@@ -452,7 +455,7 @@ onBeforeUnmount(() => {
         </article>
 
         <aside class="invite-column" aria-label="Inviter dans l’équipe">
-          <article class="panel invite-panel">
+          <article data-tour="team-invite" class="panel invite-panel">
             <header class="card-heading">
               <span class="icon-tile"><Mail :size="22" aria-hidden="true" /></span>
               <div><h2>Inviter un membre</h2><p>Donnez accès à votre espace de réunion.</p></div>

@@ -2,6 +2,8 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 
 import './style.css'
+import 'driver.js/dist/driver.css'
+import './onboarding/onboarding.css'
 import App from './App.vue'
 import router from './route/router'
 

@@ -16,7 +16,7 @@ import {
 import logo from '@/assets/logo.png'
 import logoR from '@/assets/logoR.png'
 import loginVisual from '../assets/visuel1login.png'
-import { loginUser } from '@/service/api'
+import { loginUser, resendVerificationEmail } from '@/service/api'
 
 const route = useRoute()
 const router = useRouter()
@@ -27,6 +27,22 @@ const rememberMe = ref(true)
 const showPassword = ref(false)
 const isSubmitting = ref(false)
 const errorMessage = ref('')
+const verificationNeeded = ref(false)
+const resendMessage = ref('')
+const isResending = ref(false)
+
+async function resendVerification() {
+  try {
+    isResending.value = true
+    resendMessage.value = ''
+    const result = await resendVerificationEmail(email.value.trim())
+    resendMessage.value = result.message
+  } catch (error) {
+    resendMessage.value = error.message || "Impossible de renvoyer l'e-mail."
+  } finally {
+    isResending.value = false
+  }
+}
 
 async function handleLogin() {
   if (!email.value.trim() || !password.value) {
@@ -37,6 +53,8 @@ async function handleLogin() {
   try {
     isSubmitting.value = true
     errorMessage.value = ''
+    verificationNeeded.value = false
+    resendMessage.value = ''
 
     await loginUser(
       {
@@ -52,6 +70,7 @@ async function handleLogin() {
     router.push(redirectTo)
   } catch (error) {
     errorMessage.value = error.message || 'Connexion impossible pour le moment.'
+    verificationNeeded.value = error.code === 'EMAIL_NOT_VERIFIED'
   } finally {
     isSubmitting.value = false
   }
@@ -209,6 +228,21 @@ async function handleLogin() {
           >
             {{ errorMessage }}
           </p>
+
+          <div v-if="verificationNeeded" class="mt-4 grid gap-3">
+            <button
+              class="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 font-black text-blue-700 transition hover:bg-blue-100 disabled:opacity-60"
+              type="button"
+              :disabled="isResending"
+              @click="resendVerification"
+            >
+              <LoaderCircle v-if="isResending" class="h-5 w-5 animate-spin" />
+              Renvoyer l'e-mail de vérification
+            </button>
+            <p v-if="resendMessage" class="text-center text-sm font-semibold text-slate-600">
+              {{ resendMessage }}
+            </p>
+          </div>
 
           <button
             class="mt-7 inline-flex h-13 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 text-base font-black text-white shadow-[0_14px_28px_rgba(37,99,235,0.25)] transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"

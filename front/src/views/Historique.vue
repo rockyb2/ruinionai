@@ -75,14 +75,19 @@ async function loadMeetings({ append = false } = {}) {
 }
 watch(() => route.query.q, value => { searchQuery.value = typeof value === 'string' ? value : '' })
 watch(selectedMeetingId, value => { clearTimeout(timer); if (!value) loadMeetings() })
-onMounted(() => { if (!selectedMeetingId.value) loadMeetings() })
+onMounted(() => {
+  window.setTimeout(() => {
+    window.dispatchEvent(new CustomEvent('ruinion-onboarding-complete', { detail: { step: 'view_history' } }))
+  }, 0)
+  if (!selectedMeetingId.value) loadMeetings()
+})
 onUnmounted(() => { disposed = true; clearTimeout(timer) })
 </script>
 
 <template>
   <MeetingDetail v-if="selectedMeetingId" :key="selectedMeetingId" :meeting-id="selectedMeetingId" />
   <section v-else class="min-h-full min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-    <header class="flex flex-wrap items-start justify-between gap-4">
+    <header data-tour="history-page" class="flex flex-wrap items-start justify-between gap-4">
       <div>
         <p class="text-xs font-bold uppercase tracking-wider text-blue-600">Mémoire d’équipe</p>
         <h1 class="mt-2 text-2xl font-black tracking-tight text-slate-900">Historique des réunions</h1>
@@ -91,7 +96,7 @@ onUnmounted(() => { disposed = true; clearTimeout(timer) })
       <button type="button" class="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-blue-100 hover:bg-blue-700" @click="startNewMeeting"><Plus class="h-4 w-4" /> Nouvelle réunion</button>
     </header>
 
-    <div class="mt-7 flex flex-col justify-between gap-4 border-b border-slate-100 pb-5 2xl:flex-row 2xl:items-center">
+    <div data-tour="history-filters" class="mt-7 flex flex-col justify-between gap-4 border-b border-slate-100 pb-5 2xl:flex-row 2xl:items-center">
       <div class="flex flex-wrap gap-2" aria-label="Filtrer les réunions">
         <button v-for="item in filters" :key="item.id" @click="filter = item.id" :aria-pressed="filter === item.id"
           class="flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs font-bold transition sm:text-sm"
@@ -115,6 +120,7 @@ onUnmounted(() => { disposed = true; clearTimeout(timer) })
     <div v-if="loading" class="grid gap-5 md:grid-cols-2 xl:grid-cols-3"><div v-for="index in 6" :key="index" class="h-72 animate-pulse rounded-2xl bg-slate-100" /></div>
     <div v-else-if="filteredMeetings.length" class="grid gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
       <RouterLink v-for="meeting in filteredMeetings" :key="meeting.id" :to="{ name: 'historique', query: { meeting: meeting.id } }"
+        data-tour="history-card"
         class="group min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-lg hover:shadow-blue-100/50 focus-visible:outline-2 focus-visible:outline-blue-500"
         :aria-label="'Ouvrir la réunion ' + meeting.title" data-testid="meeting-card">
         <div class="relative flex h-32 items-center justify-center overflow-hidden bg-gradient-to-br from-blue-50 via-slate-50 to-blue-100">

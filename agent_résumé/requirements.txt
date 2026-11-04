@@ -93,3 +93,4 @@ zipp==4.1.0
 PyJWT==2.15.0
 slowapi==0.1.9
 redis>=5,<8
+resend[async]==2.50.1

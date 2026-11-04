@@ -4,6 +4,7 @@ import { ArrowLeft, CalendarDays, Check, Copy, Download, FileText, Headphones, L
 import { useMeeting } from '@/composables/useMeeting'
 import { downloadMeetingReport, getMeetingAudio } from '@/service/api'
 import { formatMeetingDate, formatTime, isProcessing, processingErrorMessage, statusLabel } from '@/utils/meeting'
+import MeetingRichText from '@/components/MeetingRichText.vue'
 
 const props = defineProps({ meetingId: { type: Number, required: true } })
 const { meeting, loading, error, retrying, refresh, retry } = useMeeting(props.meetingId)
@@ -72,7 +73,10 @@ async function seek(seconds) {
 async function downloadWord() {
   downloading.value = true
   actionError.value = ''
-  try { await downloadMeetingReport(props.meetingId) }
+  try {
+    await downloadMeetingReport(props.meetingId)
+    window.dispatchEvent(new CustomEvent('ruinion-onboarding-complete', { detail: { step: 'download_report' } }))
+  }
   catch (failure) { actionError.value = failure.message }
   finally { downloading.value = false }
 }
@@ -127,7 +131,7 @@ onUnmounted(() => {
             <span class="rounded-full px-3 py-1 font-bold" :class="meeting.processing_status === 'failed' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'">{{ statusLabel(meeting) }}</span>
           </div>
         </div>
-        <button v-if="meeting.report_path" :disabled="downloading" @click="downloadWord" class="inline-flex w-fit items-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50">
+        <button v-if="meeting.report_path" data-tour="meeting-download" :disabled="downloading" @click="downloadWord" class="inline-flex w-fit items-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50">
           <LoaderCircle v-if="downloading" class="h-4 w-4 animate-spin" /><Download v-else class="h-4 w-4" /> Télécharger le Word
         </button>
       </header>
@@ -144,7 +148,7 @@ onUnmounted(() => {
       <p v-if="actionError" role="alert" class="text-sm text-red-600">{{ actionError }}</p>
 
       <div class="grid min-w-0 items-start gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-        <article class="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" data-testid="transcript-panel">
+        <article data-tour="meeting-results" class="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" data-testid="transcript-panel">
           <div class="flex items-center justify-between gap-2 border-b border-slate-100 p-3 sm:p-4">
             <div class="flex min-w-0 flex-wrap gap-1" role="tablist" aria-label="Contenu de la réunion">
               <button v-for="item in tabs" :id="`tab-${item.id}`" :key="item.id" role="tab" :aria-selected="tab === item.id" aria-controls="meeting-text" @click="tab = item.id"
@@ -174,7 +178,7 @@ onUnmounted(() => {
                 <button type="button" class="rounded-lg bg-slate-50 px-4 py-2.5 text-sm font-bold text-blue-600 hover:bg-blue-50" @click="visibleLimit += TRANSCRIPT_BATCH_SIZE">Afficher la suite de la transcription</button>
               </div>
             </template>
-            <p v-else class="whitespace-pre-wrap break-words text-sm leading-8 text-slate-700">{{ (tab === 'summary' ? meeting.summary_short : meeting.summary_long) || 'Ce contenu n’est pas encore disponible.' }}</p>
+            <MeetingRichText v-else :text="tab === 'summary' ? meeting.summary_short : meeting.summary_long" />
           </div>
         </article>
 

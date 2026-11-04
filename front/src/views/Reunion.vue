@@ -50,6 +50,10 @@ const isSubmitting = ref(false)
 const statusMessage = ref('')
 const errorMessage = ref('')
 
+function completeOnboarding(step) {
+  window.dispatchEvent(new CustomEvent('ruinion-onboarding-complete', { detail: { step } }))
+}
+
 // mise en place  restoration du draft de réunion si l'utilisateur revient sur la page
 onMounted(() => {
   meetingDraft.restore()
@@ -71,6 +75,14 @@ watch(
     deep: true,
   },
 )
+
+watch(() => selectedMembers.value.length, (count) => {
+  if (count > 0) completeOnboarding('invite_participants')
+})
+
+watch([selectedFile, recordingReady], ([file, ready]) => {
+  if (file || ready) completeOnboarding('add_audio')
+})
 
 onBeforeUnmount(() => {
   if (meetingDraft.restored) {
@@ -108,6 +120,7 @@ async function ensureMeeting() {
     invitationMessage.value = `Invitation envoyée à ${selectedMembers.value.length} membre(s) dans l’application.`
   }
   window.dispatchEvent(new CustomEvent('meeting-created'))
+  completeOnboarding('create_meeting')
   return createdMeeting.value
 }
 
@@ -198,6 +211,7 @@ async function processMeeting() {
 
     statusMessage.value = 'Mise en attente du traitement…'
     await generateSummary(meeting.id)
+    completeOnboarding('generate_report')
     if (!selectedFile.value) await audioRecorder.value?.clearDraft()
 
     statusMessage.value = 'Traitement lancé. Vous pouvez suivre son avancement dans l’historique.'
@@ -236,7 +250,7 @@ async function processMeeting() {
       <section class="rounded-2xl border border-slate-200 bg-white p-5">
         <h2 class="text-lg font-black text-slate-900">Informations</h2>
 
-        <label class="mt-5 block">
+        <label data-tour="meeting-title" class="mt-5 block">
           <span class="text-sm font-black text-slate-700">Titre de la réunion</span>
           <span class="mt-3 flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3">
             <SquarePen class="h-4 w-4 text-slate-400" />
@@ -261,7 +275,7 @@ async function processMeeting() {
         <p v-if="createdMeeting" class="mt-3 text-xs leading-5 text-slate-500">Réunion créée. Vous pouvez maintenant enregistrer ou importer l’audio pour cette réunion.</p>
       </section>
 
-      <section class="rounded-2xl border border-slate-200 bg-white p-5">
+      <section data-tour="meeting-audio" class="rounded-2xl border border-slate-200 bg-white p-5">
         <div class="grid gap-6 lg:grid-cols-[1fr_1fr]">
           <AudioRecorder
             ref="audioRecorder"
@@ -317,7 +331,7 @@ async function processMeeting() {
     </div>
 
     <section class="mt-5 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-      <div class="rounded-2xl border border-slate-200 bg-white p-5">
+      <div data-tour="meeting-pipeline" class="rounded-2xl border border-slate-200 bg-white p-5">
         <div class="flex gap-3">
           <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-blue-600 text-white">
             <Info class="h-4 w-4" />
@@ -361,6 +375,7 @@ async function processMeeting() {
       </div>
 
       <button
+        data-tour="meeting-generate"
         class="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-black text-white shadow-lg shadow-blue-100 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
         :disabled="!canSubmit"
         type="button"

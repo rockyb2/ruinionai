@@ -13,3 +13,17 @@ button,
 input {
   font: inherit;
 }
+
+button,
+summary,
+a[href],
+select,
+[role="button"] {
+  cursor: pointer;
+}
+
+button:disabled,
+select:disabled,
+[role="button"][aria-disabled="true"] {
+  cursor: not-allowed;
+}
