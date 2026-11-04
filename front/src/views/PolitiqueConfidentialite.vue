@@ -5,7 +5,7 @@ defineProps({
   embedded: { type: Boolean, default: false },
 })
 
-const updatedAt = '12 octobre 2026'
+const updatedAt = '4 novembre 2026'
 
 const sections = [
   { id: 'responsable', label: 'Responsable du traitement' },
@@ -40,7 +40,7 @@ function scrollToSection(id) {
         <p class="text-sm font-black uppercase tracking-[0.2em] text-blue-600">Protection des données</p>
         <h1 class="mt-4 max-w-3xl font-black tracking-tight text-slate-950" :class="embedded ? 'text-3xl' : 'text-4xl sm:text-5xl'">Politique de confidentialité</h1>
         <p class="mt-5 max-w-3xl text-lg leading-8 text-slate-600">
-          Cette politique explique quelles données Ruinion AI traite pour transcrire et résumer vos réunions, pourquoi elles sont utilisées et comment exercer vos droits.
+          Cette politique explique quelles données Ruinion AI traite pour fournir le service, quels prestataires techniques interviennent et comment exercer vos droits. Le contenu des réunions est traité automatiquement, chiffré au repos et inaccessible depuis l’interface d’administration de la plateforme.
         </p>
         <p class="mt-5 text-sm font-semibold text-slate-500">Dernière mise à jour : {{ updatedAt }}</p>
       </div>
@@ -73,9 +73,10 @@ function scrollToSection(id) {
         <section id="donnees" class="privacy-card">
           <h2>2. Données que nous traitons</h2>
           <div class="mt-5 grid gap-4 sm:grid-cols-2">
-            <div class="privacy-block"><h3>Compte et organisation</h3><p>Nom, prénom, adresse électronique, mot de passe haché, organisation, rôle, statut, invitations et notifications.</p></div>
+            <div class="privacy-block"><h3>Compte et organisation</h3><p>Nom, prénom, adresse électronique, mot de passe haché, état et date de vérification de l’adresse, organisation, rôle, statut, invitations et notifications.</p></div>
             <div class="privacy-block"><h3>Réunions</h3><p>Titre, date, organisateur, membres invités, durée et état du traitement.</p></div>
             <div class="privacy-block"><h3>Contenus</h3><p>Fichiers audio, transcription et segments horodatés, résumé, compte rendu et document généré.</p></div>
+            <div class="privacy-block"><h3>Vérification et prise en main</h3><p>Empreinte cryptographique des jetons de vérification d’e-mail, dates d’expiration et d’utilisation, version du tutoriel, étapes terminées et dates de fin ou de masquage.</p></div>
             <div class="privacy-block"><h3>Sécurité et fonctionnement</h3><p>Routes appelées, résultat HTTP, événements d’authentification, empreinte HMAC de l’adresse IP, modèle utilisé, durée, volume et coût estimé des traitements IA.</p></div>
           </div>
           <p class="mt-5">Un brouillon audio peut aussi rester temporairement dans le stockage local du navigateur jusqu’à son envoi, sa suppression ou le nettoyage des données du navigateur.</p>
@@ -85,10 +86,12 @@ function scrollToSection(id) {
           <h2>3. Pourquoi ces données sont utilisées</h2>
           <ul class="privacy-list">
             <li>créer et sécuriser les comptes et les espaces d’organisation ;</li>
+            <li>vérifier les adresses électroniques, envoyer les messages transactionnels et prévenir les créations de comptes frauduleuses ;</li>
             <li>enregistrer ou importer un audio à la demande de l’utilisateur ;</li>
             <li>transcrire l’audio, générer un résumé et produire un compte rendu ;</li>
             <li>partager une réunion avec les membres expressément invités ;</li>
             <li>fournir l’historique, les notifications et les documents téléchargeables ;</li>
+            <li>mémoriser la progression du parcours de prise en main afin de ne pas afficher inutilement les étapes déjà terminées ou masquées ;</li>
             <li>prévenir les abus, diagnostiquer les erreurs et tenir un journal d’audit ;</li>
             <li>mesurer les volumes techniques et les coûts des fournisseurs IA.</li>
           </ul>
@@ -106,12 +109,15 @@ function scrollToSection(id) {
           <ul class="privacy-list">
             <li>le créateur de la réunion et les membres qui y ont été invités ;</li>
             <li>les services techniques de Ruinion AI strictement nécessaires au fonctionnement et à la sécurité ;</li>
-            <li>Mistral AI/Voxtral pour la transcription et, selon la configuration, la rédaction ;</li>
-            <li>OpenRouter et les modèles de secours configurés lorsqu’un premier modèle de rédaction échoue ;</li>
+            <li>ElevenLabs/Scribe pour la transcription audio principale, avec transmission de l’enregistrement nécessaire à cette opération ;</li>
+            <li>Mistral AI/Voxtral lorsque ce service est utilisé comme solution de transcription de secours ;</li>
+            <li>Mistral AI, OpenRouter et les modèles de rédaction configurés pour produire les résumés et comptes rendus à partir de la transcription ;</li>
+            <li>Resend pour l’envoi des e-mails de vérification et de bienvenue ; Resend reçoit les informations nécessaires au message, mais aucun audio, transcription, résumé ou compte rendu ;</li>
             <li>Langfuse pour les métriques techniques de traçage, notamment le modèle, la durée, la consommation et le coût estimé, sans audio, transcription, résumé ni réponse générée ;</li>
             <li>les prestataires d’hébergement et de stockage nécessaires à l’exploitation.</li>
           </ul>
-          <p class="mt-5">Ruinion AI ne vend pas les données de réunion et ne les utilise pas pour de la publicité ciblée. Certains fournisseurs peuvent traiter des données hors de Côte d’Ivoire selon leur infrastructure et leurs engagements contractuels.</p>
+          <p class="mt-5">L’administration de la plateforme peut consulter les métadonnées nécessaires au support et à la sécurité — par exemple le titre, l’organisation, l’état du traitement, la durée et l’existence d’un résultat — mais son interface ne donne accès ni à l’audio, ni aux participants, ni à la transcription, ni aux résumés, ni au document Word. Les contenus restent accessibles aux utilisateurs autorisés de l’organisation.</p>
+          <p class="mt-4">Ruinion AI ne vend pas les données de réunion et ne les utilise pas pour de la publicité ciblée. Certains fournisseurs peuvent traiter des données hors de Côte d’Ivoire selon leur infrastructure et leurs engagements contractuels.</p>
         </section>
 
         <section id="conservation" class="privacy-card">
@@ -122,6 +128,8 @@ function scrollToSection(id) {
               <tbody>
                 <tr><td>Compte et appartenance à une organisation</td><td>Pendant la durée d’utilisation du compte, puis selon les obligations légales et les demandes valides de suppression.</td></tr>
                 <tr><td>Audio, transcription, résumé et document</td><td>Tant que la réunion correspondante est conservée ou jusqu’à une suppression autorisée.</td></tr>
+                <tr><td>Jetons de vérification d’e-mail</td><td>Les jetons sont enregistrés uniquement sous forme d’empreinte cryptographique, associés à une date d’expiration et invalidés après utilisation ou remplacement. Les enregistrements techniques correspondants restent liés au compte jusqu’à leur suppression administrative ou à la suppression du compte.</td></tr>
+                <tr><td>Progression du tutoriel</td><td>Pendant la durée du compte, jusqu’à sa réinitialisation par l’utilisateur ou à la suppression du compte.</td></tr>
                 <tr><td>Invitations</td><td>Jusqu’à expiration, révocation ou acceptation, puis pour la gestion et la preuve de l’invitation.</td></tr>
                 <tr><td>Journal d’audit</td><td>Aussi longtemps que nécessaire à la sécurité, à la détection des abus et à la preuve des actions administratives.</td></tr>
                 <tr><td>Traces techniques IA</td><td>Selon la durée configurée dans Langfuse et les besoins de suivi des performances et des coûts.</td></tr>
@@ -136,7 +144,9 @@ function scrollToSection(id) {
           <ul class="privacy-list">
             <li>isolation des réunions par organisation et contrôle des rôles ;</li>
             <li>chiffrement AES-256-GCM des transcriptions, segments, résumés et comptes rendus en base ;</li>
+            <li>absence d’accès au contenu privé des réunions depuis les routes et l’interface d’administration de la plateforme ;</li>
             <li>hachage des mots de passe et limitation des tentatives de connexion ;</li>
+            <li>jetons de vérification d’e-mail à usage unique, avec stockage de leur seule empreinte cryptographique ;</li>
             <li>stockage privé des fichiers et restriction de l’accès au contenu des réunions ;</li>
             <li>journalisation des actions administratives sans corps de requête ni adresse IP en clair ;</li>
             <li>réduction des données envoyées à l’outil de traçage IA.</li>
@@ -157,7 +167,7 @@ function scrollToSection(id) {
 
         <section class="privacy-card">
           <h2>9. Stockage local et cookies</h2>
-          <p>Le navigateur utilise un stockage local ou de session pour maintenir la connexion et mémoriser le contexte de l’organisation. Un stockage IndexedDB peut conserver temporairement les parties d’un enregistrement non encore envoyé. Aucun cookie publicitaire n’est nécessaire au fonctionnement décrit ici.</p>
+          <p>Le navigateur utilise un stockage local ou de session pour maintenir la connexion, mémoriser le contexte de l’organisation, conserver temporairement l’adresse en attente de vérification et éviter de répéter certaines indications du tutoriel. Un stockage IndexedDB peut conserver temporairement les parties d’un enregistrement non encore envoyé. Aucun cookie publicitaire n’est nécessaire au fonctionnement décrit ici.</p>
         </section>
 
         <section class="privacy-card">
