@@ -220,6 +220,12 @@ async function handleLogin() {
               />
               Se souvenir de moi
             </label>
+            <RouterLink
+              class="cursor-pointer font-bold text-blue-600 transition hover:text-blue-700"
+              to="/mot-de-passe-oublie"
+            >
+              Mot de passe oublié ?
+            </RouterLink>
           </div>
 
           <p

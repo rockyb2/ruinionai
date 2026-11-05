@@ -6,6 +6,7 @@ import Equipe from '../views/Equipe.vue'
 import Historique from '../views/Historique.vue'
 import Invitation from '../views/Invitation.vue'
 import Login from '../views/Login.vue'
+import ForgotPassword from '../views/ForgotPassword.vue'
 import NotFound from '../views/NotFound.vue'
 import PolitiqueConfidentialite from '../views/PolitiqueConfidentialite.vue'
 import Reunion from '../views/Reunion.vue'
@@ -73,6 +74,12 @@ const routes = [
     name: 'login',
     component: Login,
     meta: { guestOnly: true, title: 'Connexion' },
+  },
+  {
+    path: '/mot-de-passe-oublie',
+    name: 'forgot-password',
+    component: ForgotPassword,
+    meta: { guestOnly: true, title: 'Mot de passe oublié' },
   },
   {
     path: '/inscription',

@@ -61,6 +61,12 @@ class User(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    password_reset_codes = relationship(
+        "PasswordResetCode",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
 
 class EmailVerificationToken(Base):
@@ -82,6 +88,29 @@ class EmailVerificationToken(Base):
     user = relationship(
         "User",
         back_populates="email_verification_tokens",
+    )
+
+
+class PasswordResetCode(Base):
+    __tablename__ = "password_reset_codes"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # Le code en clair n'est jamais conservé en base.
+    code_hash = Column(String(64), nullable=False, index=True)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    used_at = Column(DateTime, nullable=True)
+    failed_attempts = Column(Integer, nullable=False, default=0, server_default="0")
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    user = relationship(
+        "User",
+        back_populates="password_reset_codes",
     )
 
 

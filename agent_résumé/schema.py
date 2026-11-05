@@ -312,6 +312,41 @@ class EmailVerificationResponse(BaseModel):
     verified: bool
 
 
+class ForgotPasswordRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailStr = Field(max_length=255)
+
+
+class ForgotPasswordResponse(BaseModel):
+    message: str
+
+
+class VerifyPasswordResetCodeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailStr = Field(max_length=255)
+    code: str = Field(pattern=r"^\d{8}$")
+
+
+class PasswordResetCodeVerifiedResponse(BaseModel):
+    reset_token: str
+
+
+class ResetPasswordRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reset_token: str = Field(min_length=32, max_length=2048)
+    new_password: str = Field(min_length=8, max_length=128)
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_password_bytes(cls, value: str) -> str:
+        if len(value.encode("utf-8")) > 72:
+            raise ValueError("Le mot de passe ne peut pas dépasser 72 octets.")
+        return value
+
+
 class LoginRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

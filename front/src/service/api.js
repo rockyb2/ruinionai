@@ -180,6 +180,42 @@ export async function resendVerificationEmail(email) {
   )
 }
 
+export async function requestPasswordReset(email) {
+  return apiRequest(
+    '/auth/forgot-password',
+    {
+      method: 'POST',
+      auth: false,
+      body: { email },
+    },
+    "Impossible d'envoyer le code de réinitialisation.",
+  )
+}
+
+export async function verifyPasswordResetCode(email, code) {
+  return apiRequest(
+    '/auth/verify-password-reset-code',
+    {
+      method: 'POST',
+      auth: false,
+      body: { email, code },
+    },
+    'Impossible de vérifier le code.',
+  )
+}
+
+export async function resetPassword(data) {
+  return apiRequest(
+    '/auth/reset-password',
+    {
+      method: 'POST',
+      auth: false,
+      body: data,
+    },
+    'Impossible de modifier le mot de passe.',
+  )
+}
+
 export async function loginUser(data, remember = true) {
   const response = await apiRequest(
     '/auth/login',

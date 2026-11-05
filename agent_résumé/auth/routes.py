@@ -1,4 +1,5 @@
 import os
+import secrets
 from datetime import datetime, timedelta
 from hashlib import sha256
 
@@ -19,24 +20,44 @@ from auth.dependencies import AuthContext, get_current_user, get_member_organiza
 from auth.rate_limit import limiter
 from auth.security import create_access_token, hash_password, verify_password
 from database import get_db
-from models import EmailVerificationToken, Organization, OrganizationMember, User
+from models import (
+    EmailVerificationToken,
+    Organization,
+    OrganizationMember,
+    PasswordResetCode,
+    User,
+)
 from schema import (
     CURRENT_TERMS_VERSION,
     CurrentUserResponse,
     EmailVerificationRequest,
     EmailVerificationResponse,
+    ForgotPasswordRequest,
+    ForgotPasswordResponse,
     LoginRequest,
     ONBOARDING_VERSION,
     OnboardingStateRead,
     OnboardingStateUpdate,
+    PasswordResetCodeVerifiedResponse,
     RegisterRequest,
     RegistrationPendingResponse,
+    ResetPasswordRequest,
     ResendEmailVerificationRequest,
     Token,
+    VerifyPasswordResetCodeRequest,
 )
 from services.email_verification_service import (
     create_email_verification_token,
     deliver_welcome_verification_email,
+)
+from services.password_reset_service import (
+    InvalidPasswordResetToken,
+    create_password_reset_code,
+    create_password_reset_token,
+    decode_password_reset_token,
+    deliver_password_changed_email,
+    deliver_password_reset_code_email,
+    hash_reset_code,
 )
 
 
@@ -414,6 +435,233 @@ def logout(
     )
     db.commit()
     return Response(status_code=204)
+
+
+@router.post(
+    "/forgot-password",
+    response_model=ForgotPasswordResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+@limiter.limit("3 per 15 minutes")
+def forgot_password(
+    request: Request,
+    response: Response,
+    background_tasks: BackgroundTasks,
+    payload: ForgotPasswordRequest,
+    db: Session = Depends(get_db),
+):
+    email = normalize_email(str(payload.email))
+    user = (
+        db.query(User)
+        .filter(User.email == email)
+        .with_for_update()
+        .populate_existing()
+        .first()
+    )
+    now = datetime.utcnow()
+
+    if user is not None and user.is_active:
+        recent_codes = (
+            db.query(PasswordResetCode)
+            .filter(
+                PasswordResetCode.user_id == user.id,
+                PasswordResetCode.created_at >= now - timedelta(hours=1),
+            )
+            .count()
+        )
+        latest = (
+            db.query(PasswordResetCode)
+            .filter(PasswordResetCode.user_id == user.id)
+            .order_by(PasswordResetCode.created_at.desc())
+            .first()
+        )
+        if (
+            recent_codes < 3
+            and (latest is None or latest.created_at <= now - timedelta(minutes=2))
+        ):
+            code = create_password_reset_code(db, user, now=now)
+            add_audit_log(
+                db,
+                action="AUTH_PASSWORD_RESET_REQUESTED",
+                request=request,
+                actor_id=user.id,
+                target_type="user",
+                target_id=user.id,
+                status_code=202,
+            )
+            db.commit()
+            background_tasks.add_task(
+                deliver_password_reset_code_email,
+                user.email,
+                user.first_name,
+                code,
+            )
+    else:
+        # Effectue aussi une opération cryptographique pour rapprocher le temps
+        # de réponse de celui d'une adresse existante.
+        hash_reset_code(0, "00000000")
+
+    response.headers["Cache-Control"] = "no-store"
+    return {
+        "message": (
+            "Si un compte correspond à cette adresse, un code temporaire "
+            "va être envoyé par e-mail."
+        )
+    }
+
+
+@router.post(
+    "/verify-password-reset-code",
+    response_model=PasswordResetCodeVerifiedResponse,
+)
+@limiter.limit("5 per 15 minutes")
+def verify_password_reset_code(
+    request: Request,
+    response: Response,
+    payload: VerifyPasswordResetCodeRequest,
+    db: Session = Depends(get_db),
+):
+    email = normalize_email(str(payload.email))
+    user = (
+        db.query(User)
+        .filter(User.email == email)
+        .with_for_update()
+        .populate_existing()
+        .first()
+    )
+    now = datetime.utcnow()
+    reset_code = None
+
+    if user is not None and user.is_active:
+        reset_code = (
+            db.query(PasswordResetCode)
+            .filter(
+                PasswordResetCode.user_id == user.id,
+                PasswordResetCode.used_at.is_(None),
+            )
+            .order_by(PasswordResetCode.created_at.desc())
+            .with_for_update()
+            .populate_existing()
+            .first()
+        )
+
+    code_valid = bool(
+        reset_code is not None
+        and reset_code.expires_at > now
+        and reset_code.failed_attempts < 5
+        and secrets.compare_digest(
+            reset_code.code_hash,
+            hash_reset_code(user.id, payload.code),
+        )
+    )
+
+    if not code_valid:
+        if reset_code is not None:
+            if reset_code.expires_at <= now or reset_code.failed_attempts >= 4:
+                reset_code.used_at = now
+            reset_code.failed_attempts += 1
+            db.commit()
+        else:
+            secrets.compare_digest(
+                hash_reset_code(0, payload.code),
+                hash_reset_code(0, "00000000"),
+            )
+        raise HTTPException(
+            status_code=400,
+            detail="Code invalide ou expiré. Demandez un nouveau code.",
+        )
+
+    reset_code.used_at = now
+    add_audit_log(
+        db,
+        action="AUTH_PASSWORD_RESET_CODE_VERIFIED",
+        request=request,
+        actor_id=user.id,
+        target_type="user",
+        target_id=user.id,
+        status_code=200,
+    )
+    db.commit()
+    response.headers["Cache-Control"] = "no-store"
+    return {"reset_token": create_password_reset_token(user, reset_code.id)}
+
+
+@router.post("/reset-password", response_model=ForgotPasswordResponse)
+@limiter.limit("5 per 15 minutes")
+def reset_password(
+    request: Request,
+    response: Response,
+    background_tasks: BackgroundTasks,
+    payload: ResetPasswordRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        reset_claims = decode_password_reset_token(payload.reset_token)
+        user_id = int(reset_claims["sub"])
+        token_version = int(reset_claims["ver"])
+        reset_code_id = int(reset_claims["reset_code_id"])
+    except (InvalidPasswordResetToken, TypeError, ValueError, KeyError):
+        raise HTTPException(
+            status_code=400,
+            detail="Cette autorisation de réinitialisation est invalide ou expirée.",
+        )
+
+    user = (
+        db.query(User)
+        .filter(User.id == user_id, User.is_active.is_(True))
+        .with_for_update()
+        .populate_existing()
+        .first()
+    )
+    verified_code_exists = (
+        db.query(PasswordResetCode.id)
+        .filter(
+            PasswordResetCode.id == reset_code_id,
+            PasswordResetCode.user_id == user_id,
+            PasswordResetCode.used_at.is_not(None),
+        )
+        .scalar()
+        is not None
+    )
+    if (
+        user is None
+        or user.token_version != token_version
+        or not verified_code_exists
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Cette autorisation de réinitialisation est invalide ou expirée.",
+        )
+
+    now = datetime.utcnow()
+    user.password_hash = hash_password(payload.new_password)
+    user.token_version += 1
+    user.failed_login_attempts = 0
+    user.locked_until = None
+    db.query(PasswordResetCode).filter(
+        PasswordResetCode.user_id == user.id,
+        PasswordResetCode.used_at.is_(None),
+    ).update(
+        {PasswordResetCode.used_at: now},
+        synchronize_session=False,
+    )
+    add_audit_log(
+        db,
+        action="AUTH_PASSWORD_RESET_COMPLETED",
+        request=request,
+        actor_id=user.id,
+        target_type="user",
+        target_id=user.id,
+        status_code=200,
+    )
+    db.commit()
+    background_tasks.add_task(
+        deliver_password_changed_email,
+        user.email,
+        user.first_name,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return {"message": "Votre mot de passe a été modifié."}
 
 
 @router.get("/me", response_model=CurrentUserResponse)
